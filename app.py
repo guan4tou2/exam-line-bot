@@ -12,8 +12,8 @@ from linebot.models import MessageEvent, TextMessage, TextSendMessage,PostbackAc
 
 app = Flask(__name__)
 
-access_token='s+R1eR9Z6kORa+MuOz3ePF7kaW1VBj+tMginf/81bXMHt5bF92qH4V+CSY/9gXmP7Wctrmnhebftz3NLdUpWgj1u34xm1nohTMbbWNkDbPuY/C3OFkrUI1R/OcjnV5tLwIQy6GZP0D5lMZXIIsBymwdB04t89/1O/w1cDnyilFU='
-secret='64559810cb91d4a96865beae00b1d8af'
+access_token=''
+secret=''
 char_list = list("ABCD")
 
 def get_question(file):
