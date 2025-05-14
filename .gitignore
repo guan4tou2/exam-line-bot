@@ -6,3 +6,4 @@
 *.pyz
 *.pywz
 *.pyzw
+ssl/*
