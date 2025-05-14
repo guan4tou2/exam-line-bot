@@ -1,0 +1,91 @@
+{
+    "type": "bubble",
+    "size": "mega",
+    "body": {
+        "type": "box",
+        "layout": "vertical",
+        "spacing": "md",
+        "contents": [
+            {
+                "type": "text",
+                "text": "✅ 答對了！",
+                "weight": "bold",
+                "size": "xl",
+                "color": "#00C851"
+            },
+            {
+                "type": "text",
+                "text": "📝 題目回顧",
+                "weight": "bold",
+                "size": "lg",
+                "color": "#1a1a1a"
+            },
+            {
+                "type": "text",
+                "text": "題目文字",
+                "wrap": true,
+                "size": "md",
+                "color": "#444444",
+                "margin": "md"
+            },
+            {
+                "type": "box",
+                "layout": "vertical",
+                "margin": "lg",
+                "spacing": "sm",
+                "contents": [
+                    {
+                        "type": "text",
+                        "text": "✨ 正確答案",
+                        "weight": "bold",
+                        "size": "lg",
+                        "color": "#1a1a1a"
+                    },
+                    {
+                        "type": "text",
+                        "text": "答案文字",
+                        "wrap": true,
+                        "size": "md",
+                        "color": "#00C851",
+                        "margin": "sm"
+                    }
+                ]
+            }
+        ]
+    },
+    "footer": {
+        "type": "box",
+        "layout": "horizontal",
+        "spacing": "md",
+        "contents": [
+            {
+                "type": "button",
+                "style": "primary",
+                "color": "#5A8DEE",
+                "action": {
+                    "type": "message",
+                    "label": "📂 切換題庫",
+                    "text": "切換題庫"
+                }
+            },
+            {
+                "type": "button",
+                "style": "primary",
+                "color": "#AAAAAA",
+                "action": {
+                    "type": "message",
+                    "label": "🔄 下一題",
+                    "text": "下一題"
+                }
+            }
+        ]
+    },
+    "styles": {
+        "body": {
+            "backgroundColor": "#FFFFFF"
+        },
+        "footer": {
+            "backgroundColor": "#F0F0F0"
+        }
+    }
+}

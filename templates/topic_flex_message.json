@@ -1,0 +1,78 @@
+{
+  "type": "bubble",
+  "body": {
+    "type": "box",
+    "layout": "vertical",
+    "spacing": "md",
+    "contents": [
+      {
+        "type": "text",
+        "text": "📚 題庫：",
+        "weight": "bold",
+        "size": "sm",
+        "color": "#888888"
+      },
+      {
+        "type": "text",
+        "text": "🧠 題目：",
+        "wrap": true,
+        "weight": "bold",
+        "size": "md",
+        "color": "#000000"
+      },
+      {
+        "type": "separator",
+        "margin": "md"
+      },
+      {
+        "type": "box",
+        "layout": "vertical",
+        "margin": "md",
+        "spacing": "sm",
+        "contents": [
+          {
+            "type": "button",
+            "action": {
+              "type": "message",
+              "label": "optionA",
+              "text": "選擇 A"
+            },
+            "style": "secondary"
+          },
+          {
+            "type": "button",
+            "action": {
+              "type": "message",
+              "label": "optionB",
+              "text": "選擇 B"
+            },
+            "style": "secondary"
+          },
+          {
+            "type": "button",
+            "action": {
+              "type": "message",
+              "label": "optionC",
+              "text": "選擇 C"
+            },
+            "style": "secondary"
+          },
+          {
+            "type": "button",
+            "action": {
+              "type": "message",
+              "label": "optionD",
+              "text": "選擇 D"
+            },
+            "style": "secondary"
+          }
+        ]
+      }
+    ]
+  },
+  "styles": {
+    "body": {
+      "backgroundColor": "#FFFFFF"
+    }
+  }
+}
