@@ -4,20 +4,13 @@
     {
       "type": "bubble",
       "size": "micro",
-      "hero": {
-        "type": "image",
-        "url": "https://i.imgur.com/Uz4FryZ.png",
-        "size": "full",
-        "aspectRatio": "20:13",
-        "aspectMode": "cover"
-      },
       "body": {
         "type": "box",
         "layout": "vertical",
         "contents": [
           {
             "type": "text",
-            "text": "資安基礎",
+            "text": "題庫",
             "weight": "bold",
             "size": "sm",
             "wrap": true
@@ -29,8 +22,8 @@
             "margin": "md",
             "action": {
               "type": "message",
-              "label": "開始練習",
-              "text": "切換到 資安基礎"
+              "label": "切換題庫",
+              "text": "切換到 題庫"
             }
           }
         ]

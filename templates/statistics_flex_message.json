@@ -1,0 +1,194 @@
+{
+    "type": "bubble",
+    "body": {
+        "type": "box",
+        "layout": "vertical",
+        "spacing": "md",
+        "contents": [
+            {
+                "type": "text",
+                "text": "📊 答題統計",
+                "weight": "bold",
+                "size": "xl",
+                "color": "#1a1a1a"
+            },
+            {
+                "type": "text",
+                "text": "📚 當前題庫：{database_name}",
+                "size": "md",
+                "color": "#888888",
+                "margin": "sm"
+            },
+            {
+                "type": "box",
+                "layout": "vertical",
+                "spacing": "sm",
+                "margin": "lg",
+                "contents": [
+                    {
+                        "type": "box",
+                        "layout": "baseline",
+                        "contents": [
+                            {
+                                "type": "text",
+                                "text": "總題目數",
+                                "size": "sm",
+                                "color": "#888888",
+                                "flex": 1
+                            },
+                            {
+                                "type": "text",
+                                "text": "{total_questions}",
+                                "size": "sm",
+                                "color": "#1a1a1a",
+                                "align": "end"
+                            }
+                        ]
+                    },
+                    {
+                        "type": "box",
+                        "layout": "baseline",
+                        "contents": [
+                            {
+                                "type": "text",
+                                "text": "已答題數",
+                                "size": "sm",
+                                "color": "#888888",
+                                "flex": 1
+                            },
+                            {
+                                "type": "text",
+                                "text": "{total_answers}",
+                                "size": "sm",
+                                "color": "#5A8DEE",
+                                "align": "end"
+                            }
+                        ]
+                    },
+                    {
+                        "type": "box",
+                        "layout": "baseline",
+                        "contents": [
+                            {
+                                "type": "text",
+                                "text": "答對題數",
+                                "size": "sm",
+                                "color": "#888888",
+                                "flex": 1
+                            },
+                            {
+                                "type": "text",
+                                "text": "{correct_answers}",
+                                "size": "sm",
+                                "color": "#00C851",
+                                "align": "end"
+                            }
+                        ]
+                    },
+                    {
+                        "type": "separator",
+                        "margin": "sm"
+                    },
+                    {
+                        "type": "box",
+                        "layout": "baseline",
+                        "contents": [
+                            {
+                                "type": "text",
+                                "text": "完成率",
+                                "size": "sm",
+                                "color": "#888888",
+                                "flex": 1
+                            },
+                            {
+                                "type": "text",
+                                "text": "{completion_rate}%",
+                                "size": "sm",
+                                "color": "#5A8DEE",
+                                "align": "end"
+                            }
+                        ]
+                    },
+                    {
+                        "type": "box",
+                        "layout": "baseline",
+                        "contents": [
+                            {
+                                "type": "text",
+                                "text": "正確率",
+                                "size": "sm",
+                                "color": "#888888",
+                                "flex": 1
+                            },
+                            {
+                                "type": "text",
+                                "text": "{accuracy_rate}%",
+                                "size": "sm",
+                                "color": "#00C851",
+                                "align": "end"
+                            }
+                        ]
+                    },
+                    {
+                        "type": "box",
+                        "layout": "baseline",
+                        "contents": [
+                            {
+                                "type": "text",
+                                "text": "錯題數",
+                                "size": "sm",
+                                "color": "#888888",
+                                "flex": 1
+                            },
+                            {
+                                "type": "text",
+                                "text": "{total_wrong_questions}",
+                                "size": "sm",
+                                "color": "#ff4444",
+                                "align": "end"
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    },
+    "footer": {
+        "type": "box",
+        "layout": "horizontal",
+        "spacing": "sm",
+        "contents": [
+            {
+                "type": "button",
+                "style": "primary",
+                "action": {
+                    "type": "message",
+                    "label": "練習錯題",
+                    "text": "練習錯題"
+                },
+                "height": "sm",
+                "flex": 1
+            },
+            {
+                "type": "button",
+                "style": "primary",
+                "color": "#AAAAAA",
+                "action": {
+                    "type": "message",
+                    "label": "下一題",
+                    "text": "下一題"
+                },
+                "height": "sm",
+                "flex": 1
+            }
+        ]
+    },
+    "styles": {
+        "body": {
+            "backgroundColor": "#FFFFFF"
+        },
+        "footer": {
+            "separator": true
+        }
+    }
+}

@@ -9,16 +9,15 @@
         "type": "text",
         "text": "📚 題庫：",
         "weight": "bold",
-        "size": "sm",
-        "color": "#888888"
+        "size": "md",
+        "color": "#1a1a1a"
       },
       {
         "type": "text",
         "text": "🧠 題目：",
-        "wrap": true,
-        "weight": "bold",
         "size": "md",
-        "color": "#000000"
+        "wrap": true,
+        "color": "#1a1a1a"
       },
       {
         "type": "separator",
@@ -70,9 +69,41 @@
       }
     ]
   },
+  "footer": {
+    "type": "box",
+    "layout": "vertical",
+    "spacing": "sm",
+    "contents": [
+      {
+        "type": "box",
+        "layout": "horizontal",
+        "contents": [
+          {
+            "type": "text",
+            "text": "作答次數：{total_attempts}",
+            "size": "sm",
+            "color": "#888888",
+            "flex": 1,
+            "align": "start"
+          },
+          {
+            "type": "text",
+            "text": "答對次數：{correct_attempts}",
+            "size": "sm",
+            "color": "#00C851",
+            "flex": 1,
+            "align": "end"
+          }
+        ]
+      }
+    ]
+  },
   "styles": {
     "body": {
       "backgroundColor": "#FFFFFF"
+    },
+    "footer": {
+      "separator": true
     }
   }
 }

@@ -1,0 +1,215 @@
+{
+    "type": "bubble",
+    "body": {
+        "type": "box",
+        "layout": "vertical",
+        "spacing": "md",
+        "contents": [
+            {
+                "type": "text",
+                "text": "📚 題庫：",
+                "weight": "bold",
+                "size": "md",
+                "color": "#1a1a1a"
+            },
+            {
+                "type": "text",
+                "text": "🧠 題目：",
+                "size": "md",
+                "wrap": true,
+                "color": "#1a1a1a"
+            },
+            {
+                "type": "separator",
+                "margin": "md"
+            },
+            {
+                "type": "box",
+                "layout": "vertical",
+                "margin": "md",
+                "spacing": "sm",
+                "contents": [
+                    {
+                        "type": "box",
+                        "layout": "vertical",
+                        "cornerRadius": "xxl",
+                        "backgroundColor": "#5A8DEE",
+                        "action": {
+                            "type": "message",
+                            "text": "選擇 A"
+                        },
+                        "contents": [
+                            {
+                                "type": "box",
+                                "layout": "horizontal",
+                                "paddingAll": "lg",
+                                "contents": [
+                                    {
+                                        "type": "text",
+                                        "text": "A. 選項A",
+                                        "color": "#ffffff",
+                                        "wrap": true,
+                                        "size": "sm",
+                                        "flex": 1
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "type": "box",
+                        "layout": "vertical",
+                        "cornerRadius": "xxl",
+                        "backgroundColor": "#5A8DEE",
+                        "action": {
+                            "type": "message",
+                            "text": "選擇 B"
+                        },
+                        "contents": [
+                            {
+                                "type": "box",
+                                "layout": "horizontal",
+                                "paddingAll": "lg",
+                                "contents": [
+                                    {
+                                        "type": "text",
+                                        "text": "B. 選項B",
+                                        "color": "#ffffff",
+                                        "wrap": true,
+                                        "size": "sm",
+                                        "flex": 1
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "type": "box",
+                        "layout": "vertical",
+                        "cornerRadius": "xxl",
+                        "backgroundColor": "#5A8DEE",
+                        "action": {
+                            "type": "message",
+                            "text": "選擇 C"
+                        },
+                        "contents": [
+                            {
+                                "type": "box",
+                                "layout": "horizontal",
+                                "paddingAll": "lg",
+                                "contents": [
+                                    {
+                                        "type": "text",
+                                        "text": "C. 選項C",
+                                        "color": "#ffffff",
+                                        "wrap": true,
+                                        "size": "sm",
+                                        "flex": 1
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "type": "box",
+                        "layout": "vertical",
+                        "cornerRadius": "xxl",
+                        "backgroundColor": "#5A8DEE",
+                        "action": {
+                            "type": "message",
+                            "text": "選擇 D"
+                        },
+                        "contents": [
+                            {
+                                "type": "box",
+                                "layout": "horizontal",
+                                "paddingAll": "lg",
+                                "contents": [
+                                    {
+                                        "type": "text",
+                                        "text": "D. 選項D",
+                                        "color": "#ffffff",
+                                        "wrap": true,
+                                        "size": "sm",
+                                        "flex": 1
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    },
+    "footer": {
+        "type": "box",
+        "layout": "vertical",
+        "spacing": "sm",
+        "contents": [
+            {
+                "type": "box",
+                "layout": "horizontal",
+                "contents": [
+                    {
+                        "type": "text",
+                        "text": "作答次數：{total_attempts}",
+                        "size": "sm",
+                        "color": "#888888",
+                        "flex": 1,
+                        "align": "start"
+                    },
+                    {
+                        "type": "text",
+                        "text": "答對次數：{correct_attempts}",
+                        "size": "sm",
+                        "color": "#00C851",
+                        "flex": 1,
+                        "align": "end"
+                    }
+                ]
+            },
+            {
+                "type": "separator",
+                "margin": "sm"
+            },
+            {
+                "type": "box",
+                "layout": "horizontal",
+                "spacing": "sm",
+                "margin": "sm",
+                "contents": [
+                    {
+                        "type": "button",
+                        "style": "secondary",
+                        "height": "sm",
+                        "action": {
+                            "type": "message",
+                            "label": "清除選擇",
+                            "text": "清除選擇"
+                        },
+                        "flex": 1
+                    },
+                    {
+                        "type": "button",
+                        "style": "primary",
+                        "height": "sm",
+                        "action": {
+                            "type": "message",
+                            "label": "送出答案",
+                            "text": "送出答案"
+                        },
+                        "flex": 1
+                    }
+                ]
+            }
+        ]
+    },
+    "styles": {
+        "body": {
+            "backgroundColor": "#FFFFFF"
+        },
+        "footer": {
+            "separator": true
+        }
+    }
+}

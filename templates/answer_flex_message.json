@@ -55,28 +55,69 @@
     },
     "footer": {
         "type": "box",
-        "layout": "horizontal",
-        "spacing": "md",
+        "layout": "vertical",
+        "spacing": "sm",
         "contents": [
             {
-                "type": "button",
-                "style": "primary",
-                "color": "#5A8DEE",
-                "action": {
-                    "type": "message",
-                    "label": "📂 切換題庫",
-                    "text": "切換題庫"
-                }
+                "type": "box",
+                "layout": "horizontal",
+                "spacing": "sm",
+                "contents": [
+                    {
+                        "type": "button",
+                        "style": "primary",
+                        "color": "#5A8DEE",
+                        "action": {
+                            "type": "message",
+                            "label": "📂 切換題庫",
+                            "text": "切換題庫"
+                        },
+                        "height": "sm",
+                        "flex": 1
+                    },
+                    {
+                        "type": "button",
+                        "style": "primary",
+                        "color": "#AAAAAA",
+                        "action": {
+                            "type": "message",
+                            "label": "🔄 下一題",
+                            "text": "下一題"
+                        },
+                        "height": "sm",
+                        "flex": 1
+                    }
+                ]
             },
             {
-                "type": "button",
-                "style": "primary",
-                "color": "#AAAAAA",
-                "action": {
-                    "type": "message",
-                    "label": "🔄 下一題",
-                    "text": "下一題"
-                }
+                "type": "box",
+                "layout": "horizontal",
+                "spacing": "sm",
+                "contents": [
+                    {
+                        "type": "button",
+                        "style": "secondary",
+                        "action": {
+                            "type": "message",
+                            "label": "📊 查看統計",
+                            "text": "查看統計"
+                        },
+                        "height": "sm",
+                        "flex": 1
+                    },
+                    {
+                        "type": "button",
+                        "style": "secondary",
+                        "color": "#ff4444",
+                        "action": {
+                            "type": "message",
+                            "label": "📝 練習錯題",
+                            "text": "練習錯題"
+                        },
+                        "height": "sm",
+                        "flex": 1
+                    }
+                ]
             }
         ]
     },

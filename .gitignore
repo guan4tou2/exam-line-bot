@@ -7,3 +7,4 @@
 *.pywz
 *.pyzw
 ssl/*
+user_records.db
