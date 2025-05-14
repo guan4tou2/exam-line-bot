@@ -39,49 +39,62 @@ current_question_data = None  # 用於存儲完整的題目數據
 current_database = None  # 用於追踪當前題庫
 
 
-def create_database_flex_message():
-    """創建題庫選擇的 Flex Message"""
+def create_database_flex_message(page=1):
+    """創建題庫選擇的 Flex Message
+    Args:
+        page (int): 當前頁碼，從1開始
+    """
     try:
         # 讀取基本模板
         with open('templates/database_flex_message.json', 'r', encoding='utf-8') as f:
             flex_message = json.load(f)
 
         # 獲取 database 資料夾中的所有 json 文件
-        database_files = [f for f in os.listdir(
-            'database') if f.endswith('.json')]
+        database_files = [f for f in os.listdir('database') if f.endswith('.json')]
+        
+        # 計算分頁資訊
+        items_per_page = 10  # 每頁顯示10個題庫
+        total_pages = (len(database_files) + items_per_page - 1) // items_per_page
+        
+        # 確保頁碼有效
+        page = max(1, min(page, total_pages))
+        
+        # 計算當前頁的題庫
+        start_idx = (page - 1) * items_per_page
+        end_idx = start_idx + items_per_page
+        current_page_files = database_files[start_idx:end_idx]
 
         # 創建題庫氣泡列表
         bubbles = []
-        for db_file in database_files:
+        for db_file in current_page_files:
             # 移除 .json 副檔名，作為題庫名稱
             db_name = db_file[:-5]
+            
+            # 如果題庫名稱太長，截斷它
+            display_name = db_name
+            if len(display_name) > 20:  # 為了在氣泡中顯示得更好
+                display_name = display_name[:17] + "..."
 
             bubble = {
                 "type": "bubble",
                 "size": "micro",
-                "hero": {
-                    "type": "image",
-                    "url": "https://i.imgur.com/Uz4FryZ.png",
-                    "size": "full",
-                    "aspectRatio": "20:13",
-                    "aspectMode": "cover"
-                },
                 "body": {
                     "type": "box",
                     "layout": "vertical",
+                    "spacing": "sm",
                     "contents": [
                         {
                             "type": "text",
-                            "text": db_name,
+                            "text": display_name,
                             "weight": "bold",
-                            "size": "sm",
-                            "wrap": True
+                            "size": "md",
+                            "wrap": True,
+                            "align": "center"
                         },
                         {
                             "type": "button",
                             "style": "primary",
                             "color": "#5A8DEE",
-                            "margin": "md",
                             "action": {
                                 "type": "message",
                                 "label": "開始練習",
@@ -92,6 +105,55 @@ def create_database_flex_message():
                 }
             }
             bubbles.append(bubble)
+
+        # 添加分頁控制氣泡
+        if total_pages > 1:
+            navigation_contents = [
+                {
+                    "type": "text",
+                    "text": f"第 {page}/{total_pages} 頁",
+                    "weight": "bold",
+                    "size": "sm",
+                    "align": "center"
+                }
+            ]
+
+            # 上一頁按鈕
+            if page > 1:
+                navigation_contents.append({
+                    "type": "button",
+                    "style": "secondary",
+                    "action": {
+                        "type": "message",
+                        "label": "上一頁",
+                        "text": f"題庫列表 {page-1}"
+                    }
+                })
+            
+            # 下一頁按鈕
+            if page < total_pages:
+                navigation_contents.append({
+                    "type": "button",
+                    "style": "secondary",
+                    "action": {
+                        "type": "message",
+                        "label": "下一頁",
+                        "text": f"題庫列表 {page+1}"
+                    }
+                })
+
+            navigation_bubble = {
+                "type": "bubble",
+                "size": "micro",
+                "body": {
+                    "type": "box",
+                    "layout": "vertical",
+                    "spacing": "sm",
+                    "contents": navigation_contents
+                }
+            }
+
+            bubbles.append(navigation_bubble)
 
         # 更新 carousel 內容
         flex_message["contents"] = bubbles
@@ -150,12 +212,47 @@ def create_flex_message(question_data):
     current_question_data["options"] = new_options
     current_question_data["answer"] = current_question
 
+    # 創建選項容器
+    options_container = {
+        "type": "box",
+        "layout": "vertical",
+        "spacing": "sm",
+        "contents": []
+    }
+
     # 設置選項按鈕（按 A,B,C,D 順序）
-    option_buttons = flex_message["body"]["contents"][3]["contents"]
     for i, char in enumerate("ABCD"):
-        option_buttons[i]["action"]["label"] = f"{char}. {new_options[char]}"
-        option_buttons[i]["action"]["text"] = f"選擇 {char}. {new_options[char]}"
-        option_buttons[i]["style"] = "secondary"
+        option_box = {
+            "type": "box",
+            "layout": "vertical",
+            "cornerRadius": "xxl",
+            "backgroundColor": "#5A8DEE",
+            "action": {
+                "type": "message",
+                "text": f"選擇 {char}. {new_options[char]}"
+            },
+            "contents": [
+                {
+                    "type": "box",
+                    "layout": "horizontal",
+                    "paddingAll": "lg",
+                    "contents": [
+                        {
+                            "type": "text",
+                            "text": f"{char}. {new_options[char]}",
+                            "color": "#ffffff",
+                            "wrap": True,
+                            "size": "sm",
+                            "flex": 1
+                        }
+                    ]
+                }
+            ]
+        }
+        options_container["contents"].append(option_box)
+
+    # 更新 flex message 中的選項容器
+    flex_message["body"]["contents"][3] = options_container
 
     return flex_message
 
@@ -165,11 +262,18 @@ def send_question(reply_token, database_name=None):
     global current_database
 
     try:
-        # 如果沒有指定題庫名稱，使用當前題庫
+        # 如果沒有指定題庫名稱，使用當前題庫或第一個可用的題庫
         if database_name is None:
-            database_name = current_database if current_database else "技術"  # 預設使用技術題庫
-        else:
-            current_database = database_name  # 更新當前題庫
+            if current_database:
+                database_name = current_database
+            else:
+                # 獲取 database 目錄下的所有 json 文件
+                database_files = [f[:-5] for f in os.listdir('database') if f.endswith('.json')]
+                if not database_files:
+                    raise FileNotFoundError("找不到任何題庫文件")
+                database_name = database_files[0]  # 使用第一個找到的題庫
+        
+        current_database = database_name  # 更新當前題庫
 
         # 檢查題庫文件是否存在
         file_path = f'database/{database_name}.json'
@@ -229,11 +333,17 @@ def create_answer_flex_message(question_data, selected_answer, is_correct):
         flex_message["body"]["contents"][0]["text"] = "✅ 答對了！" if is_correct else "❌ 答錯了！"
         flex_message["body"]["contents"][0]["color"] = "#00C851" if is_correct else "#ff4444"
 
-        # 設置題目文字
-        flex_message["body"]["contents"][2]["text"] = question_data['question_text']
+        # 設置題目文字（如果太長則截斷）
+        question_text = question_data['question_text']
+        if len(question_text) > 100:  # 限制題目長度
+            question_text = question_text[:97] + "..."
+        flex_message["body"]["contents"][2]["text"] = question_text
 
-        # 設置正確答案
-        flex_message["body"]["contents"][3]["contents"][1]["text"] = question_data['options'][question_data['answer']]
+        # 設置正確答案（如果太長則截斷）
+        correct_answer = question_data['options'][question_data['answer']]
+        if len(correct_answer) > 40:  # 限制答案長度
+            correct_answer = correct_answer[:37] + "..."
+        flex_message["body"]["contents"][3]["contents"][1]["text"] = correct_answer
 
         return flex_message
     except Exception as e:
@@ -264,127 +374,119 @@ def callback():
 @handler.add(MessageEvent, message=TextMessageContent)
 def handle_message(event):
     """處理收到的消息"""
-    message_text = event.message.text
+    try:
+        message_text = event.message.text
 
-    # 如果是選項回答
-    if message_text.startswith("選擇 "):
-        selected_answer = message_text.split(" ")[1].split(".")[
-            0]  # 獲取選擇的選項（A、B、C、D）
+        # 準備 API 客戶端
+        with ApiClient(configuration) as api_client:
+            line_bot_api = MessagingApi(api_client)
 
-        # 檢查答案並回覆
-        if current_question and current_question_data:
-            is_correct = selected_answer == current_question
-            result_flex = create_answer_flex_message(
-                current_question_data, selected_answer, is_correct)
+            # 如果是選項回答
+            if message_text.startswith("選擇 "):
+                selected_answer = message_text.split(" ")[1].split(".")[0]  # 獲取選擇的選項（A、B、C、D）
 
-            if result_flex:
-                with ApiClient(configuration) as api_client:
-                    line_bot_api = MessagingApi(api_client)
+                # 檢查答案並回覆
+                if current_question and current_question_data:
+                    is_correct = selected_answer == current_question
+                    result_flex = create_answer_flex_message(current_question_data, selected_answer, is_correct)
+
+                    if result_flex:
+                        line_bot_api.reply_message_with_http_info(
+                            ReplyMessageRequest(
+                                reply_token=event.reply_token,
+                                messages=[FlexMessage(alt_text="題目回顧", contents=FlexContainer.from_dict(result_flex))]
+                            )
+                        )
+                    else:
+                        line_bot_api.reply_message_with_http_info(
+                            ReplyMessageRequest(
+                                reply_token=event.reply_token,
+                                messages=[TextMessage(text="抱歉，無法顯示答案回覆")]
+                            )
+                        )
+
+            # 如果是切換題庫請求
+            elif message_text == "切換題庫":
+                flex_content = create_database_flex_message(page=1)
+                if flex_content:
                     line_bot_api.reply_message_with_http_info(
                         ReplyMessageRequest(
                             reply_token=event.reply_token,
-                            messages=[
-                                FlexMessage(
-                                    alt_text="題目回顧",
-                                    contents=FlexContainer.from_dict(
-                                        result_flex)
-                                )
-                            ]
+                            messages=[FlexMessage(alt_text="選擇題庫", contents=FlexContainer.from_dict(flex_content))]
                         )
                     )
+                else:
+                    line_bot_api.reply_message_with_http_info(
+                        ReplyMessageRequest(
+                            reply_token=event.reply_token,
+                            messages=[TextMessage(text="抱歉，無法讀取題庫列表")]
+                        )
+                    )
+
+            # 如果是題庫列表分頁請求
+            elif message_text.startswith("題庫列表 "):
+                try:
+                    page = int(message_text.split(" ")[1])
+                    flex_content = create_database_flex_message(page=page)
+                    if flex_content:
+                        line_bot_api.reply_message_with_http_info(
+                            ReplyMessageRequest(
+                                reply_token=event.reply_token,
+                                messages=[FlexMessage(alt_text=f"選擇題庫 - 第{page}頁", contents=FlexContainer.from_dict(flex_content))]
+                            )
+                        )
+                except (ValueError, IndexError):
+                    line_bot_api.reply_message_with_http_info(
+                        ReplyMessageRequest(
+                            reply_token=event.reply_token,
+                            messages=[TextMessage(text="無效的頁碼")]
+                        )
+                    )
+
+            # 如果是選擇特定題庫
+            elif message_text.startswith("切換到 "):
+                database_name = message_text[4:]  # 取得題庫名稱
+                send_question(event.reply_token, database_name)
+
+            # 如果是"下一題"請求
+            elif message_text == "下一題":
+                send_question(event.reply_token)  # 使用當前題庫
+
+            # 如果是其他消息，顯示題庫選擇
             else:
-                # 如果創建 Flex Message 失敗，發送簡單的文字消息
-                with ApiClient(configuration) as api_client:
-                    line_bot_api = MessagingApi(api_client)
-                    line_bot_api.reply_message_with_http_info(
-                        ReplyMessageRequest(
-                            reply_token=event.reply_token,
-                            messages=[TextMessage(text="抱歉，無法顯示答案回覆")]
-                        )
-                    )
-        else:
-            # 如果沒有當前題目數據，顯示題庫選擇
-            flex_content = create_database_flex_message()
-            if flex_content:
-                with ApiClient(configuration) as api_client:
-                    line_bot_api = MessagingApi(api_client)
+                flex_content = create_database_flex_message(page=1)
+                if flex_content:
                     line_bot_api.reply_message_with_http_info(
                         ReplyMessageRequest(
                             reply_token=event.reply_token,
                             messages=[
-                                FlexMessage(
-                                    alt_text="選擇題庫",
-                                    contents=FlexContainer.from_dict(
-                                        flex_content)
-                                )
+                                TextMessage(text="請選擇要練習的題庫："),
+                                FlexMessage(alt_text="選擇題庫", contents=FlexContainer.from_dict(flex_content))
                             ]
                         )
                     )
+                else:
+                    line_bot_api.reply_message_with_http_info(
+                        ReplyMessageRequest(
+                            reply_token=event.reply_token,
+                            messages=[TextMessage(text="抱歉，無法讀取題庫列表")]
+                        )
+                    )
 
-    # 如果是切換題庫請求
-    elif message_text == "切換題庫":
-        flex_content = create_database_flex_message()
-        if flex_content:
+    except Exception as e:
+        print(f"Error in handle_message: {str(e)}")
+        # 如果發生錯誤，嘗試發送一個簡單的錯誤訊息
+        try:
             with ApiClient(configuration) as api_client:
                 line_bot_api = MessagingApi(api_client)
                 line_bot_api.reply_message_with_http_info(
                     ReplyMessageRequest(
                         reply_token=event.reply_token,
-                        messages=[
-                            FlexMessage(
-                                alt_text="選擇題庫",
-                                contents=FlexContainer.from_dict(flex_content)
-                            )
-                        ]
+                        messages=[TextMessage(text="處理訊息時發生錯誤，請稍後再試")]
                     )
                 )
-        else:
-            # 如果創建題庫列表失敗，發送錯誤消息
-            with ApiClient(configuration) as api_client:
-                line_bot_api = MessagingApi(api_client)
-                line_bot_api.reply_message_with_http_info(
-                    ReplyMessageRequest(
-                        reply_token=event.reply_token,
-                        messages=[TextMessage(text="抱歉，無法讀取題庫列表")]
-                    )
-                )
-
-    # 如果是選擇特定題庫
-    elif message_text.startswith("切換到 "):
-        database_name = message_text[4:]  # 取得題庫名稱
-        send_question(event.reply_token, database_name)
-
-    # 如果是"下一題"請求
-    elif message_text == "下一題":
-        send_question(event.reply_token)  # 使用當前題庫
-
-    # 如果是其他消息，顯示題庫選擇
-    else:
-        flex_content = create_database_flex_message()
-        if flex_content:
-            with ApiClient(configuration) as api_client:
-                line_bot_api = MessagingApi(api_client)
-                line_bot_api.reply_message_with_http_info(
-                    ReplyMessageRequest(
-                        reply_token=event.reply_token,
-                        messages=[
-                            TextMessage(text="請選擇要練習的題庫："),
-                            FlexMessage(
-                                alt_text="選擇題庫",
-                                contents=FlexContainer.from_dict(flex_content)
-                            )
-                        ]
-                    )
-                )
-        else:
-            with ApiClient(configuration) as api_client:
-                line_bot_api = MessagingApi(api_client)
-                line_bot_api.reply_message_with_http_info(
-                    ReplyMessageRequest(
-                        reply_token=event.reply_token,
-                        messages=[TextMessage(text="抱歉，無法讀取題庫列表")]
-                    )
-                )
+        except Exception as inner_e:
+            print(f"Error sending error message: {str(inner_e)}")
 
 
 if __name__ == "__main__":
