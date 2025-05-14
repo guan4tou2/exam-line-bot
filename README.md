@@ -53,20 +53,82 @@ SECRET=你的_LINE_Channel_Secret
 PORT=8080  # 可選，預設為 8080
 ```
 
-4. 設定 SSL 證書：
+4. 設定免費域名（使用 DuckDNS）：
 ```bash
-# 建立 ssl 目錄
-mkdir -p ssl
+# 1. 註冊 DuckDNS
+# 訪問 https://www.duckdns.org/ 並使用 GitHub 或其他方式登入
 
-# 生成自簽證書（開發環境使用）
-openssl req -x509 -newkey rsa:4096 -nodes \
-  -out ssl/cert.pem -keyout ssl/key.pem \
-  -days 365 -subj "/CN=localhost"
+# 2. 創建子域名
+# - 在 domains 頁面添加新的子域名（例如：mybot.duckdns.org）
+# - 記下 token 值
+
+# 3. 安裝更新腳本
+mkdir -p ~/duckdns
+cd ~/duckdns
+token="你的DuckDNS令牌"
+domain="你的子域名"
+
+# 創建更新腳本
+cat > duck.sh << EOF
+echo url="https://www.duckdns.org/update?domains=$domain&token=$token&ip=" | curl -k -o ~/duckdns/duck.log -K -
+EOF
+
+# 設定執行權限
+chmod 700 duck.sh
+
+# 測試更新
+./duck.sh
+
+# 4. 設定自動更新（每5分鐘）
+(crontab -l 2>/dev/null; echo "*/5 * * * * ~/duckdns/duck.sh >/dev/null 2>&1") | crontab -
 ```
 
-5. 設定 LINE Bot：
+5. 設定 SSL 證書：
+
+使用 Certbot：
+```bash
+# 安裝 Certbot（Ubuntu/Debian）
+sudo apt update
+sudo apt install certbot
+
+# 確保 80 和 443 端口未被占用
+sudo lsof -i :80
+sudo lsof -i :443
+
+# 生成證書（使用 --standalone 模式）
+sudo certbot certonly --standalone -d YOUR_DOMAIN.duckdns.org \
+    --agree-tos \
+    --no-eff-email \
+    --register-unsafely-without-email
+
+# 複製證書到專案目錄
+sudo mkdir -p ssl
+sudo cp /etc/letsencrypt/live/YOUR_DOMAIN.duckdns.org/fullchain.pem ssl/cert.pem
+sudo cp /etc/letsencrypt/live/YOUR_DOMAIN.duckdns.org/privkey.pem ssl/key.pem
+sudo chown -R $USER:$USER ssl/
+
+# 設定自動更新證書
+sudo certbot renew --dry-run
+
+# 添加定時更新任務（每天檢查一次）
+(crontab -l 2>/dev/null; echo "0 0 * * * sudo certbot renew --quiet") | crontab -
+```
+
+注意事項：
+1. DuckDNS 相關：
+   - 定期檢查 DuckDNS 更新腳本的運行狀態
+   - 確保 token 安全保存
+   - 如果 IP 變更，DuckDNS 會自動更新
+
+2. SSL 證書相關：
+   - 確保 80 和 443 端口未被占用
+   - 證書有效期為 90 天，系統會自動更新
+   - 定期檢查證書狀態：`sudo certbot certificates`
+   - 檢查自動更新是否正常：`systemctl status certbot.timer`
+
+6. 設定 LINE Bot：
    - 在 [LINE Developers Console](https://developers.line.biz/console/) 建立一個新的 Channel
-   - 設定 Webhook URL 為你的伺服器網址（使用 https://）
+   - 設定 Webhook URL 為 `https://YOUR_DOMAIN.duckdns.org:8080`
    - 開啟 "Use webhook" 選項
 
 ## 題庫格式
@@ -141,9 +203,11 @@ uv run app.py
 ## 安全性建議
 
 1. SSL/HTTPS：
-   - 開發環境可使用自簽證書
-   - 生產環境建議使用受信任的 SSL 證書（如 Let's Encrypt）
-   - 定期更新 SSL 證書（自簽證書有效期為 365 天）
+   - 使用 DuckDNS 提供免費域名
+   - 使用 Certbot 申請 Let's Encrypt 證書
+   - 設定證書和 DNS 自動更新
+   - 定期檢查更新腳本運行狀態
+   - 確保證書權限正確設置
 
 2. 環境變數：
    - 環境變數檔案 (.env) 不應上傳至版本控制系統
