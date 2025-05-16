@@ -8,3 +8,5 @@
 *.pyzw
 ssl/*
 user_records.db
+database/*.json
+!database/example*.json

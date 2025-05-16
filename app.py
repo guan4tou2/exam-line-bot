@@ -40,6 +40,8 @@ current_question_data = None  # 用於存儲完整的題目數據
 current_database = None  # 用於追踪當前題庫
 user_selections = {}  # 添加全局變量來儲存用戶選擇
 user_question_options = {}  # 添加全局變量來儲存每個用戶的題目選項順序
+user_current_question = {}  # user_id: 正確答案
+user_current_question_data = {}  # user_id: 題目完整資料
 
 # 初始化數據庫
 db = Database()
@@ -347,6 +349,10 @@ def create_flex_message(question_data, selected_options=None, user_id=None, is_m
         else:
             print(f"Unexpected footer structure: {stats_box}")
 
+    if user_id:
+        user_current_question[user_id] = current_question
+        user_current_question_data[user_id] = current_question_data
+
     return flex_message
 
 
@@ -521,6 +527,7 @@ def send_question(reply_token, database_name=None, user_id=None, wrong_question=
                     )]
                 )
             )
+
     except Exception as e:
         print(f"Error in send_question: {e}")
         with ApiClient(configuration) as api_client:
@@ -606,19 +613,53 @@ def handle_message(event):
                 # 從消息中提取選項（例如："選擇 A. 選項內容" -> "A"）
                 selected_answer = message_text.split(" ")[1].split(".")[0]
 
-                if is_multi:
-                    # 多選題的處理邏輯
+                if not is_multi:
+                    # 單選題直接檢查答案
+                    if user_id in user_current_question and user_id in user_current_question_data:
+                        correct_answer = user_current_question[user_id]
+                        question_data = user_current_question_data[user_id]
+                        is_correct = selected_answer == correct_answer
+
+                        # 記錄答題
+                        db.record_answer(
+                            user_id=user_id,
+                            question_data=question_data,
+                            user_answer=selected_answer,
+                            is_correct=is_correct,
+                            database_name=current_database,
+                            is_wrong_question_practice=getattr(
+                                globals(), 'is_wrong_question_practice', False)
+                        )
+
+                        # 清除
+                        del user_current_question[user_id]
+                        del user_current_question_data[user_id]
+
+                        # 顯示結果
+                        result_flex = create_answer_flex_message(
+                            question_data, selected_answer, is_correct)
+                        if result_flex:
+                            line_bot_api.reply_message_with_http_info(
+                                ReplyMessageRequest(
+                                    reply_token=event.reply_token,
+                                    messages=[FlexMessage(
+                                        alt_text="題目回顧", contents=FlexContainer.from_dict(result_flex))]
+                                )
+                            )
+                    return
+                else:
+                    # 多選題只更新選擇，不做答題判斷
                     if user_id not in user_selections:
                         user_selections[user_id] = set()
-
                     if selected_answer in user_selections[user_id]:
                         user_selections[user_id].remove(selected_answer)
                     else:
                         user_selections[user_id].add(selected_answer)
 
-                    if current_question_data:
+                    # 更新畫面
+                    if user_id in user_current_question_data:
                         flex_content = create_flex_message(
-                            current_question_data, user_selections[user_id], user_id, True)
+                            user_current_question_data[user_id], user_selections[user_id], user_id, True)
                         line_bot_api.reply_message_with_http_info(
                             ReplyMessageRequest(
                                 reply_token=event.reply_token,
@@ -629,45 +670,15 @@ def handle_message(event):
                                 )]
                             )
                         )
-                else:
-                    # 單選題直接檢查答案
-                    if current_question and current_question_data:
-                        is_correct = selected_answer == current_question
-
-                        # 記錄答題
-                        db.record_answer(
-                            user_id=user_id,
-                            question_data=current_question_data,
-                            user_answer=selected_answer,
-                            is_correct=is_correct,
-                            database_name=current_database,
-                            is_wrong_question_practice=getattr(
-                                globals(), 'is_wrong_question_practice', False)
-                        )
-
-                        # 重置錯題練習標記
-                        if 'is_wrong_question_practice' in globals():
-                            del is_wrong_question_practice
-
-                        result_flex = create_answer_flex_message(
-                            current_question_data, selected_answer, is_correct)
-                        if result_flex:
-                            line_bot_api.reply_message_with_http_info(
-                                ReplyMessageRequest(
-                                    reply_token=event.reply_token,
-                                    messages=[FlexMessage(
-                                        alt_text="題目回顧", contents=FlexContainer.from_dict(result_flex))]
-                                )
-                            )
-                return
+                    return
 
             # 如果是清除選擇（僅多選題可用）
             elif message_text == "清除選擇" and is_multi:
                 if user_id in user_selections:
                     user_selections[user_id].clear()
-                    if current_question_data:
+                    if user_id in user_current_question_data:
                         flex_content = create_flex_message(
-                            current_question_data, set(), user_id, True)
+                            user_current_question_data[user_id], set(), user_id, True)
                         line_bot_api.reply_message_with_http_info(
                             ReplyMessageRequest(
                                 reply_token=event.reply_token,
@@ -691,17 +702,18 @@ def handle_message(event):
                     )
                     return
 
-                if current_question and current_question_data:
+                if user_id in user_current_question and user_id in user_current_question_data:
+                    correct_answer = user_current_question[user_id]
+                    question_data = user_current_question_data[user_id]
                     selected_answers = sorted(user_selections[user_id])
-                    correct_answers = list(current_question)
 
-                    is_correct = (len(selected_answers) == len(correct_answers) and
-                                  all(ans in correct_answers for ans in selected_answers))
+                    is_correct = (len(selected_answers) == len(correct_answer) and
+                                  all(ans in correct_answer for ans in selected_answers))
 
                     # 記錄答題
                     db.record_answer(
                         user_id=user_id,
-                        question_data=current_question_data,
+                        question_data=question_data,
                         user_answer=','.join(selected_answers),
                         is_correct=is_correct,
                         database_name=current_database,
@@ -714,7 +726,7 @@ def handle_message(event):
                         del is_wrong_question_practice
 
                     result_flex = create_answer_flex_message(
-                        current_question_data,
+                        question_data,
                         ','.join(selected_answers),
                         is_correct
                     )
