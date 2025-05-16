@@ -1,4 +1,5 @@
-import re
+"""LINE Bot 題目練習應用程式，提供多題庫練習、即時回饋和答題統計功能。"""
+
 import random
 import json
 import os
@@ -80,8 +81,10 @@ def create_database_flex_message(page=1):
             # 移除 .json 副檔名，作為題庫名稱
             db_name = db_file[:-5]
 
+            # 將 _multi 替換為 _多選
+            display_name = db_name.replace('_multi', '_多選')
+
             # 如果題庫名稱太長，截斷它
-            display_name = db_name
             if len(display_name) > 20:  # 為了在氣泡中顯示得更好
                 display_name = display_name[:17] + "..."
 
@@ -211,8 +214,11 @@ def create_flex_message(question_data, selected_options=None, user_id=None, is_m
     current_question = question_data["answer"]  # 這裡可能是單個字母或多個字母的字符串
     current_question_data = question_data
 
-    # 設置題目文字
-    flex_message["body"]["contents"][1]["text"] = f"🧠 題目：{question_data['question_text']}"
+    # 設置題目文字（如果太長則截斷）
+    question_text = question_data['question_text']
+    if len(question_text) > 100:  # 限制題目長度
+        question_text = question_text[:97] + "..."
+    flex_message["body"]["contents"][1]["text"] = f"🧠 題目：{question_text}"
 
     # 檢查是否已有固定的選項順序
     if is_multi and user_id and user_id in user_question_options and question_data["id"] == user_question_options[user_id]["id"]:
