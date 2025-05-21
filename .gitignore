@@ -10,3 +10,4 @@ ssl/*
 user_records.db
 database/*.json
 !database/example*.json
+logs/access.log
