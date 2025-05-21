@@ -618,7 +618,7 @@ def callback():
     user_agent = request.headers.get('User-Agent', 'Unknown')
     path = request.path
     method = request.method
-    logger.info(
+    logging.info(
         f'Access - IP: {ip}, Path: {method} {path}, User-Agent: {user_agent}')
 
     # get X-Line-Signature header value
@@ -626,15 +626,15 @@ def callback():
 
     # get request body as text
     body = request.get_data(as_text=True)
-    logger.info("Request body: " + body)
+    app.logger.info("Request body: " + body)
 
     # handle webhook body
     try:
         handler.handle(body, signature)
     except InvalidSignatureError:
-        logger.error(
+        app.logger.info(
             "Invalid signature. Please check your channel access token/channel secret.")
-        logger.error(f'Invalid signature - IP: {ip}, Path: {method} {path}')
+        logging.error(f'Invalid signature - IP: {ip}, Path: {method} {path}')
         abort(400)
 
     return 'OK'
