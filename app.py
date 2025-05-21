@@ -3,6 +3,8 @@
 import random
 import json
 import os
+import logging
+from datetime import datetime
 from dotenv import load_dotenv, find_dotenv
 from flask import Flask, request, abort
 
@@ -26,6 +28,35 @@ from linebot.v3.webhooks import (
     TextMessageContent
 )
 from database import Database
+
+# 配置日志
+log_dir = 'logs'
+if not os.path.exists(log_dir):
+    os.makedirs(log_dir)
+
+# 创建日志记录器
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+
+# 创建文件处理器
+file_handler = logging.FileHandler(
+    os.path.join(log_dir, 'access.log'),
+    encoding='utf-8'
+)
+file_handler.setLevel(logging.INFO)
+
+# 创建控制台处理器
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.INFO)
+
+# 创建格式化器
+formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+file_handler.setFormatter(formatter)
+console_handler.setFormatter(formatter)
+
+# 添加处理器到日志记录器
+logger.addHandler(file_handler)
+logger.addHandler(console_handler)
 
 load_dotenv(find_dotenv())
 access_token = os.getenv('ACCESS_TOKEN')
@@ -581,19 +612,29 @@ def create_answer_flex_message(question_data, selected_answer, is_correct):
 
 @app.route("/", methods=['POST'])
 def callback():
+    # 记录访问日志
+    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    ip = request.remote_addr
+    user_agent = request.headers.get('User-Agent', 'Unknown')
+    path = request.path
+    method = request.method
+    logger.info(
+        f'Access - IP: {ip}, Path: {method} {path}, User-Agent: {user_agent}')
+
     # get X-Line-Signature header value
     signature = request.headers['X-Line-Signature']
 
     # get request body as text
     body = request.get_data(as_text=True)
-    app.logger.info("Request body: " + body)
+    logger.info("Request body: " + body)
 
     # handle webhook body
     try:
         handler.handle(body, signature)
     except InvalidSignatureError:
-        app.logger.info(
+        logger.error(
             "Invalid signature. Please check your channel access token/channel secret.")
+        logger.error(f'Invalid signature - IP: {ip}, Path: {method} {path}')
         abort(400)
 
     return 'OK'
