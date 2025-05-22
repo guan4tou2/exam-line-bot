@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  line-bot:
+    build: .
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./database:/app/database
+      - ./logs:/app/logs
+      - ./ssl:/app/ssl
+      - ./templates:/app/templates
+      - ./user_records.db:/app/user_records.db
+    environment:
+      - FLASK_ENV=production
+    restart: unless-stopped
