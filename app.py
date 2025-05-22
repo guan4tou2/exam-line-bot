@@ -615,54 +615,52 @@ def create_answer_flex_message(question_data, selected_answer, is_correct):
 
 @app.route("/", methods=['POST'])
 def callback():
-    # 记录访问日志
+    # 获取基本请求信息
     ip = request.remote_addr
-    user_agent = request.headers.get('User-Agent', 'Unknown')
-    path = request.path
     method = request.method
-    logging.info(
-        'Access - IP: %s, Path: %s %s, User-Agent: %s',
-        ip, method, path, user_agent
-    )
+    path = request.path
 
     # 获取 X-Line-Signature 请求头
     signature = request.headers.get('X-Line-Signature', '')
     if not signature:
-        logging.error('Missing X-Line-Signature header')
-        abort(400, 'Missing X-Line-Signature header')
+        logging.warning('Missing X-Line-Signature header from %s', ip)
+        return 'Bad Request', 400
 
     # 获取请求体
     body = request.get_data(as_text=True)
-    app.logger.info("Request body: %s", body)
 
     # 验证签名
     try:
         # 使用环境变量中的 channel secret
         channel_secret = os.getenv('SECRET')
         if not channel_secret:
-            logging.error('Missing channel secret in environment variables')
-            abort(500, 'Server configuration error')
+            logging.error('Missing channel secret')
+            return 'Server Error', 500
 
         # 计算签名
-        hash_value = hmac.new(
+        hash_obj = hmac.new(
             channel_secret.encode('utf-8'),
             body.encode('utf-8'),
             hashlib.sha256
-        ).digest()
-        calculated_signature = base64.b64encode(hash_value).decode('utf-8')
+        )
+        calculated_signature = base64.b64encode(
+            hash_obj.digest()).decode('utf-8')
 
-        # 比较签名，如果不匹配直接拒绝
+        # 比较签名
         if not hmac.compare_digest(signature, calculated_signature):
-            logging.error('Invalid signature')
-            abort(400, 'Invalid signature')
+            logging.warning('Invalid signature from %s', ip)
+            return 'Bad Request', 400
 
         # 处理 webhook 请求
         handler.handle(body, signature)
+        return 'OK'
+
+    except InvalidSignatureError:
+        logging.warning('Invalid signature from %s', ip)
+        return 'Bad Request', 400
     except Exception as e:
         logging.error('Error processing webhook: %s', str(e))
-        abort(500, 'Internal server error')
-
-    return 'OK'
+        return 'Server Error', 500
 
 
 @handler.add(MessageEvent, message=TextMessageContent)
