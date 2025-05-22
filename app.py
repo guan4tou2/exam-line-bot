@@ -52,10 +52,53 @@ file_handler.setLevel(logging.INFO)
 console_handler = logging.StreamHandler()
 console_handler.setLevel(logging.INFO)
 
-# 创建格式化器
-formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-file_handler.setFormatter(formatter)
-console_handler.setFormatter(formatter)
+# 创建 Common Log Format 格式化器
+
+
+class CommonLogFormatter(logging.Formatter):
+    def format(self, record):
+        # 获取请求信息
+        if hasattr(record, 'ip'):
+            ip = record.ip
+        else:
+            ip = '-'
+
+        if hasattr(record, 'user_id'):
+            user_id = record.user_id
+        else:
+            user_id = '-'
+
+        if hasattr(record, 'method'):
+            method = record.method
+        else:
+            method = '-'
+
+        if hasattr(record, 'path'):
+            path = record.path
+        else:
+            path = '-'
+
+        if hasattr(record, 'status'):
+            status = record.status
+        else:
+            status = '-'
+
+        if hasattr(record, 'size'):
+            size = record.size
+        else:
+            size = '-'
+
+        # 获取时间戳
+        timestamp = datetime.now().strftime('%d/%b/%Y:%H:%M:%S %z')
+
+        # 组合 Common Log Format
+        return f'{ip} {user_id} - [{timestamp}] "{method} {path}" {status} {size}'
+
+
+# 设置格式化器
+clf_formatter = CommonLogFormatter()
+file_handler.setFormatter(clf_formatter)
+console_handler.setFormatter(clf_formatter)
 
 # 添加处理器到日志记录器
 logger.addHandler(file_handler)
@@ -623,7 +666,14 @@ def callback():
     # 获取 X-Line-Signature 请求头
     signature = request.headers.get('X-Line-Signature', '')
     if not signature:
-        logging.warning('Missing X-Line-Signature header from %s', ip)
+        extra = {
+            'ip': ip,
+            'method': method,
+            'path': path,
+            'status': 400,
+            'size': 0
+        }
+        logging.warning('Missing X-Line-Signature header', extra=extra)
         return 'Bad Request', 400
 
     # 获取请求体
@@ -634,7 +684,14 @@ def callback():
         # 使用环境变量中的 channel secret
         channel_secret = os.getenv('SECRET')
         if not channel_secret:
-            logging.error('Missing channel secret')
+            extra = {
+                'ip': ip,
+                'method': method,
+                'path': path,
+                'status': 500,
+                'size': 0
+            }
+            logging.error('Missing channel secret', extra=extra)
             return 'Server Error', 500
 
         # 计算签名
@@ -648,18 +705,49 @@ def callback():
 
         # 比较签名
         if not hmac.compare_digest(signature, calculated_signature):
-            logging.warning('Invalid signature from %s', ip)
+            extra = {
+                'ip': ip,
+                'method': method,
+                'path': path,
+                'status': 400,
+                'size': 0
+            }
+            logging.warning('Invalid signature', extra=extra)
             return 'Bad Request', 400
 
         # 处理 webhook 请求
         handler.handle(body, signature)
+
+        # 记录成功请求
+        extra = {
+            'ip': ip,
+            'method': method,
+            'path': path,
+            'status': 200,
+            'size': len(body)
+        }
+        logging.info('Request processed successfully', extra=extra)
         return 'OK'
 
     except InvalidSignatureError:
-        logging.warning('Invalid signature from %s', ip)
+        extra = {
+            'ip': ip,
+            'method': method,
+            'path': path,
+            'status': 400,
+            'size': 0
+        }
+        logging.warning('Invalid signature', extra=extra)
         return 'Bad Request', 400
     except Exception as e:
-        logging.error('Error processing webhook: %s', str(e))
+        extra = {
+            'ip': ip,
+            'method': method,
+            'path': path,
+            'status': 500,
+            'size': 0
+        }
+        logging.error('Error processing webhook: %s', str(e), extra=extra)
         return 'Server Error', 500
 
 
