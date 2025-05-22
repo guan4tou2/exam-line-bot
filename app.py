@@ -7,6 +7,9 @@ import logging
 from datetime import datetime
 from dotenv import load_dotenv, find_dotenv
 from flask import Flask, request, abort
+import hmac
+import hashlib
+import base64
 
 from linebot.v3 import (
     WebhookHandler
@@ -621,21 +624,45 @@ def callback():
     logging.info(
         f'Access - IP: {ip}, Path: {method} {path}, User-Agent: {user_agent}')
 
-    # get X-Line-Signature header value
-    signature = request.headers['X-Line-Signature']
+    # 获取 X-Line-Signature 请求头
+    signature = request.headers.get('X-Line-Signature', '')
+    if not signature:
+        logging.error('Missing X-Line-Signature header')
+        abort(400, 'Missing X-Line-Signature header')
 
-    # get request body as text
+    # 获取请求体
     body = request.get_data(as_text=True)
     app.logger.info("Request body: " + body)
 
-    # handle webhook body
+    # 验证签名
     try:
+        # 使用环境变量中的 channel secret
+        channel_secret = os.getenv('SECRET')
+        if not channel_secret:
+            logging.error('Missing channel secret in environment variables')
+            abort(500, 'Server configuration error')
+
+        # 计算签名
+        hash = hmac.new(
+            channel_secret.encode('utf-8'),
+            body.encode('utf-8'),
+            hashlib.sha256
+        ).digest()
+        calculated_signature = base64.b64encode(hash).decode('utf-8')
+
+        # 比较签名
+        if not hmac.compare_digest(signature, calculated_signature):
+            logging.error('Invalid signature')
+            abort(400, 'Invalid signature')
+
+        # 处理 webhook 请求
         handler.handle(body, signature)
     except InvalidSignatureError:
-        app.logger.info(
-            "Invalid signature. Please check your channel access token/channel secret.")
         logging.error(f'Invalid signature - IP: {ip}, Path: {method} {path}')
-        abort(400)
+        abort(400, 'Invalid signature')
+    except Exception as e:
+        logging.error(f'Error processing webhook: {str(e)}')
+        abort(500, 'Internal server error')
 
     return 'OK'
 
