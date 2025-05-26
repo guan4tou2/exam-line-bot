@@ -10,6 +10,7 @@ from flask import Flask, request, abort
 import hmac
 import hashlib
 import base64
+import asyncio
 
 from linebot.v3 import (
     WebhookHandler
@@ -24,7 +25,10 @@ from linebot.v3.messaging import (
     ReplyMessageRequest,
     TextMessage,
     FlexContainer,
-    FlexMessage
+    FlexMessage,
+    ShowLoadingAnimationRequest,
+    AsyncApiClient,
+    AsyncMessagingApi
 )
 from linebot.v3.webhooks import (
     MessageEvent,
@@ -763,11 +767,18 @@ def handle_message(event):
             line_bot_api = MessagingApi(api_client)
 
             # 檢查當前是否為多選題庫
-            is_multi = current_database and is_multi_choice_db(
-                current_database)
+            is_multi = current_database and is_multi_choice_db(current_database)
 
             # 如果是選項選擇
             if message_text.startswith("選擇 "):
+                # 顯示 loading animation
+                async def show_loading():
+                    async_api_client = AsyncApiClient(configuration)
+                    async_line_bot_api = AsyncMessagingApi(async_api_client)
+                    await async_line_bot_api.show_loading_animation(ShowLoadingAnimationRequest(chatId=user_id, loadingSeconds=5))
+
+                asyncio.run(show_loading())
+
                 # 從消息中提取選項（例如："選擇 A. 選項內容" -> "A"）
                 selected_answer = message_text.split(" ")[1].split(".")[0]
 
@@ -785,8 +796,7 @@ def handle_message(event):
                             user_answer=selected_answer,
                             is_correct=is_correct,
                             database_name=current_database,
-                            is_wrong_question_practice=getattr(
-                                globals(), 'is_wrong_question_practice', False)
+                            is_wrong_question_practice=getattr(globals(), 'is_wrong_question_practice', False)
                         )
 
                         # 清除
@@ -794,14 +804,12 @@ def handle_message(event):
                         del user_current_question_data[user_id]
 
                         # 顯示結果
-                        result_flex = create_answer_flex_message(
-                            question_data, selected_answer, is_correct)
+                        result_flex = create_answer_flex_message(question_data, selected_answer, is_correct)
                         if result_flex:
                             line_bot_api.reply_message_with_http_info(
                                 ReplyMessageRequest(
                                     reply_token=event.reply_token,
-                                    messages=[FlexMessage(
-                                        alt_text="題目回顧", contents=FlexContainer.from_dict(result_flex))]
+                                    messages=[FlexMessage(alt_text="題目回顧", contents=FlexContainer.from_dict(result_flex))]
                                 )
                             )
                     return
@@ -816,41 +824,47 @@ def handle_message(event):
 
                     # 更新畫面
                     if user_id in user_current_question_data:
-                        flex_content = create_flex_message(
-                            user_current_question_data[user_id], user_selections[user_id], user_id, True)
+                        flex_content = create_flex_message(user_current_question_data[user_id], user_selections[user_id], user_id, True)
                         line_bot_api.reply_message_with_http_info(
                             ReplyMessageRequest(
                                 reply_token=event.reply_token,
-                                messages=[FlexMessage(
-                                    alt_text="選擇題選項",
-                                    contents=FlexContainer.from_dict(
-                                        flex_content)
-                                )]
+                                messages=[FlexMessage(alt_text="選擇題選項", contents=FlexContainer.from_dict(flex_content))]
                             )
                         )
                     return
 
             # 如果是清除選擇（僅多選題可用）
             elif message_text == "清除選擇" and is_multi:
+                # 顯示 loading animation
+                async def show_loading():
+                    async_api_client = AsyncApiClient(configuration)
+                    async_line_bot_api = AsyncMessagingApi(async_api_client)
+                    await async_line_bot_api.show_loading_animation(ShowLoadingAnimationRequest(chatId=user_id, loadingSeconds=5))
+
+                asyncio.run(show_loading())
+
                 if user_id in user_selections:
                     user_selections[user_id].clear()
                     if user_id in user_current_question_data:
-                        flex_content = create_flex_message(
-                            user_current_question_data[user_id], set(), user_id, True)
+                        flex_content = create_flex_message(user_current_question_data[user_id], set(), user_id, True)
                         line_bot_api.reply_message_with_http_info(
                             ReplyMessageRequest(
                                 reply_token=event.reply_token,
-                                messages=[FlexMessage(
-                                    alt_text="選擇題選項",
-                                    contents=FlexContainer.from_dict(
-                                        flex_content)
-                                )]
+                                messages=[FlexMessage(alt_text="選擇題選項", contents=FlexContainer.from_dict(flex_content))]
                             )
                         )
                     return
 
             # 如果是送出答案（僅多選題可用）
             elif message_text == "送出答案" and is_multi:
+                # 顯示 loading animation
+                async def show_loading():
+                    async_api_client = AsyncApiClient(configuration)
+                    async_line_bot_api = AsyncMessagingApi(async_api_client)
+                    await async_line_bot_api.show_loading_animation(ShowLoadingAnimationRequest(chatId=user_id, loadingSeconds=5))
+
+                asyncio.run(show_loading())
+
                 if user_id not in user_selections or not user_selections[user_id]:
                     line_bot_api.reply_message_with_http_info(
                         ReplyMessageRequest(
@@ -865,8 +879,7 @@ def handle_message(event):
                     question_data = user_current_question_data[user_id]
                     selected_answers = sorted(user_selections[user_id])
 
-                    is_correct = (len(selected_answers) == len(correct_answer) and
-                                  all(ans in correct_answer for ans in selected_answers))
+                    is_correct = (len(selected_answers) == len(correct_answer) and all(ans in correct_answer for ans in selected_answers))
 
                     # 記錄答題
                     db.record_answer(
@@ -875,19 +888,14 @@ def handle_message(event):
                         user_answer=','.join(selected_answers),
                         is_correct=is_correct,
                         database_name=current_database,
-                        is_wrong_question_practice=getattr(
-                            globals(), 'is_wrong_question_practice', False)
+                        is_wrong_question_practice=getattr(globals(), 'is_wrong_question_practice', False)
                     )
 
                     # 重置錯題練習標記
                     if 'is_wrong_question_practice' in globals():
                         del is_wrong_question_practice
 
-                    result_flex = create_answer_flex_message(
-                        question_data,
-                        ','.join(selected_answers),
-                        is_correct
-                    )
+                    result_flex = create_answer_flex_message(question_data, ','.join(selected_answers), is_correct)
 
                     user_selections[user_id].clear()
                     if user_id in user_question_options:
@@ -897,23 +905,28 @@ def handle_message(event):
                         line_bot_api.reply_message_with_http_info(
                             ReplyMessageRequest(
                                 reply_token=event.reply_token,
-                                messages=[FlexMessage(
-                                    alt_text="題目回顧", contents=FlexContainer.from_dict(result_flex))]
+                                messages=[FlexMessage(alt_text="題目回顧", contents=FlexContainer.from_dict(result_flex))]
                             )
                         )
                 return
 
             # 如果是查看統計
             elif message_text == "查看統計":
+                # 顯示 loading animation
+                async def show_loading():
+                    async_api_client = AsyncApiClient(configuration)
+                    async_line_bot_api = AsyncMessagingApi(async_api_client)
+                    await async_line_bot_api.show_loading_animation(ShowLoadingAnimationRequest(chatId=user_id, loadingSeconds=5))
+
+                asyncio.run(show_loading())
+
                 current_db = db.get_user_state(user_id)
                 if current_db:
-                    stats_flex = create_statistics_flex_message(
-                        user_id, current_db)
+                    stats_flex = create_statistics_flex_message(user_id, current_db)
                     line_bot_api.reply_message_with_http_info(
                         ReplyMessageRequest(
                             reply_token=event.reply_token,
-                            messages=[FlexMessage(
-                                alt_text="答題統計", contents=FlexContainer.from_dict(stats_flex))]
+                            messages=[FlexMessage(alt_text="答題統計", contents=FlexContainer.from_dict(stats_flex))]
                         )
                     )
                 else:
@@ -927,17 +940,23 @@ def handle_message(event):
 
             # 如果是練習錯題
             elif message_text == "練習錯題":
+                # 顯示 loading animation
+                async def show_loading():
+                    async_api_client = AsyncApiClient(configuration)
+                    async_line_bot_api = AsyncMessagingApi(async_api_client)
+                    await async_line_bot_api.show_loading_animation(ShowLoadingAnimationRequest(chatId=user_id, loadingSeconds=5))
+
+                asyncio.run(show_loading())
+
                 current_db = db.get_user_state(user_id)
                 if current_db:
-                    wrong_questions = db.get_wrong_questions(
-                        user_id, current_db)
+                    wrong_questions = db.get_wrong_questions(user_id, current_db)
                     if wrong_questions:
                         # 隨機選擇一道錯題
                         wrong_question = random.choice(wrong_questions)
                         # 發送題目時標記為錯題練習
                         is_wrong_question_practice = True
-                        send_question(event.reply_token,
-                                      current_db, user_id, wrong_question)
+                        send_question(event.reply_token, current_db, user_id, wrong_question)
                     else:
                         line_bot_api.reply_message_with_http_info(
                             ReplyMessageRequest(
@@ -956,13 +975,20 @@ def handle_message(event):
 
             # 如果是切換題庫請求
             elif message_text == "切換題庫":
+                # 顯示 loading animation
+                async def show_loading():
+                    async_api_client = AsyncApiClient(configuration)
+                    async_line_bot_api = AsyncMessagingApi(async_api_client)
+                    await async_line_bot_api.show_loading_animation(ShowLoadingAnimationRequest(chatId=user_id, loadingSeconds=5))
+
+                asyncio.run(show_loading())
+
                 flex_content = create_database_flex_message(page=1)
                 if flex_content:
                     line_bot_api.reply_message_with_http_info(
                         ReplyMessageRequest(
                             reply_token=event.reply_token,
-                            messages=[FlexMessage(
-                                alt_text="選擇題庫", contents=FlexContainer.from_dict(flex_content))]
+                            messages=[FlexMessage(alt_text="選擇題庫", contents=FlexContainer.from_dict(flex_content))]
                         )
                     )
                 else:
@@ -975,6 +1001,14 @@ def handle_message(event):
 
             # 如果是題庫列表分頁請求
             elif message_text.startswith("題庫列表 "):
+                # 顯示 loading animation
+                async def show_loading():
+                    async_api_client = AsyncApiClient(configuration)
+                    async_line_bot_api = AsyncMessagingApi(async_api_client)
+                    await async_line_bot_api.show_loading_animation(ShowLoadingAnimationRequest(chatId=user_id, loadingSeconds=5))
+
+                asyncio.run(show_loading())
+
                 try:
                     page = int(message_text.split(" ")[1])
                     flex_content = create_database_flex_message(page=page)
@@ -982,8 +1016,7 @@ def handle_message(event):
                         line_bot_api.reply_message_with_http_info(
                             ReplyMessageRequest(
                                 reply_token=event.reply_token,
-                                messages=[FlexMessage(
-                                    alt_text=f"選擇題庫 - 第{page}頁", contents=FlexContainer.from_dict(flex_content))]
+                                messages=[FlexMessage(alt_text=f"選擇題庫 - 第{page}頁", contents=FlexContainer.from_dict(flex_content))]
                             )
                         )
                 except (ValueError, IndexError):
@@ -996,15 +1029,39 @@ def handle_message(event):
 
             # 如果是選擇特定題庫
             elif message_text.startswith("切換到 "):
+                # 顯示 loading animation
+                async def show_loading():
+                    async_api_client = AsyncApiClient(configuration)
+                    async_line_bot_api = AsyncMessagingApi(async_api_client)
+                    await async_line_bot_api.show_loading_animation(ShowLoadingAnimationRequest(chatId=user_id, loadingSeconds=5))
+
+                asyncio.run(show_loading())
+
                 database_name = message_text[4:]
                 send_question(event.reply_token, database_name, user_id)
 
             # 如果是"下一題"請求
             elif message_text == "下一題":
+                # 顯示 loading animation
+                async def show_loading():
+                    async_api_client = AsyncApiClient(configuration)
+                    async_line_bot_api = AsyncMessagingApi(async_api_client)
+                    await async_line_bot_api.show_loading_animation(ShowLoadingAnimationRequest(chatId=user_id, loadingSeconds=5))
+
+                asyncio.run(show_loading())
+
                 send_question(event.reply_token, user_id=user_id)
 
             # 如果是其他消息，顯示題庫選擇
             else:
+                # 顯示 loading animation
+                async def show_loading():
+                    async_api_client = AsyncApiClient(configuration)
+                    async_line_bot_api = AsyncMessagingApi(async_api_client)
+                    await async_line_bot_api.show_loading_animation(ShowLoadingAnimationRequest(chatId=user_id, loadingSeconds=5))
+
+                asyncio.run(show_loading())
+
                 flex_content = create_database_flex_message(page=1)
                 if flex_content:
                     line_bot_api.reply_message_with_http_info(
@@ -1012,8 +1069,7 @@ def handle_message(event):
                             reply_token=event.reply_token,
                             messages=[
                                 TextMessage(text="請選擇要練習的題庫："),
-                                FlexMessage(
-                                    alt_text="選擇題庫", contents=FlexContainer.from_dict(flex_content))
+                                FlexMessage(alt_text="選擇題庫", contents=FlexContainer.from_dict(flex_content))
                             ]
                         )
                     )
