@@ -1,35 +1,35 @@
 """LINE Bot 題目練習應用程式，提供多題庫練習、即時回饋和答題統計功能。"""
 
-import random
-import json
-import os
-import logging
-from datetime import datetime
-from dotenv import load_dotenv, find_dotenv
-from flask import Flask, request, abort
-import hmac
-import hashlib
-import base64
 import asyncio
-from flask_logs import LogSetup
+import base64
+import hashlib
+import hmac
+import json
+import logging
+import os
+import random
+from datetime import datetime
 
+from dotenv import find_dotenv, load_dotenv
+from flask import Flask, request
 from linebot.v3 import WebhookHandler
 from linebot.v3.exceptions import InvalidSignatureError
 from linebot.v3.messaging import (
-    Configuration,
     ApiClient,
-    MessagingApi,
-    ReplyMessageRequest,
-    TextMessage,
-    FlexContainer,
-    FlexMessage,
-    ShowLoadingAnimationRequest,
     AsyncApiClient,
     AsyncMessagingApi,
+    Configuration,
+    FlexContainer,
+    FlexMessage,
+    MessagingApi,
+    ReplyMessageRequest,
+    ShowLoadingAnimationRequest,
+    TextMessage,
 )
 from linebot.v3.webhooks import MessageEvent, TextMessageContent
-from database import Database
 
+from database import Database
+from flask_logs import LogSetup
 
 load_dotenv(find_dotenv())
 access_token = os.getenv("ACCESS_TOKEN")
@@ -39,7 +39,7 @@ handler = WebhookHandler(secret)
 
 app = Flask(__name__)
 
-app.config["LOG_TYPE"] = os.environ.get("LOG_TYPE", "stream")
+app.config["LOG_TYPE"] = os.environ.get("LOG_TYPE", "watched")
 app.config["LOG_LEVEL"] = os.environ.get("LOG_LEVEL", "INFO")
 app.config["LOG_DIR"] = os.environ.get("LOG_DIR", "./logs")
 app.config["APP_LOG_NAME"] = os.environ.get("APP_LOG_NAME", "app.log")
