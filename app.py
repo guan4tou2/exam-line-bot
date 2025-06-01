@@ -11,13 +11,10 @@ import hmac
 import hashlib
 import base64
 import asyncio
+from flask_logs import LogSetup
 
-from linebot.v3 import (
-    WebhookHandler
-)
-from linebot.v3.exceptions import (
-    InvalidSignatureError
-)
+from linebot.v3 import WebhookHandler
+from linebot.v3.exceptions import InvalidSignatureError
 from linebot.v3.messaging import (
     Configuration,
     ApiClient,
@@ -28,93 +25,31 @@ from linebot.v3.messaging import (
     FlexMessage,
     ShowLoadingAnimationRequest,
     AsyncApiClient,
-    AsyncMessagingApi
+    AsyncMessagingApi,
 )
-from linebot.v3.webhooks import (
-    MessageEvent,
-    TextMessageContent
-)
+from linebot.v3.webhooks import MessageEvent, TextMessageContent
 from database import Database
 
-# 配置日志
-log_dir = 'logs'
-if not os.path.exists(log_dir):
-    os.makedirs(log_dir)
-
-# 创建日志记录器
-logger = logging.getLogger()
-logger.setLevel(logging.INFO)
-
-# 创建文件处理器
-file_handler = logging.FileHandler(
-    os.path.join(log_dir, 'access.log'),
-    encoding='utf-8'
-)
-file_handler.setLevel(logging.INFO)
-
-# 创建控制台处理器
-console_handler = logging.StreamHandler()
-console_handler.setLevel(logging.INFO)
-
-# 创建 Common Log Format 格式化器
-
-
-class CommonLogFormatter(logging.Formatter):
-    def format(self, record):
-        # 获取请求信息
-        if hasattr(record, 'ip'):
-            ip = record.ip
-        else:
-            ip = '-'
-
-        if hasattr(record, 'user_id'):
-            user_id = record.user_id
-        else:
-            user_id = '-'
-
-        if hasattr(record, 'method'):
-            method = record.method
-        else:
-            method = '-'
-
-        if hasattr(record, 'path'):
-            path = record.path
-        else:
-            path = '-'
-
-        if hasattr(record, 'status'):
-            status = record.status
-        else:
-            status = '-'
-
-        if hasattr(record, 'size'):
-            size = record.size
-        else:
-            size = '-'
-
-        # 获取时间戳
-        timestamp = datetime.now().strftime('%d/%b/%Y:%H:%M:%S %z')
-
-        # 组合 Common Log Format
-        return f'{ip} {user_id} - [{timestamp}] "{method} {path}" {status} {size}'
-
-
-# 设置格式化器
-clf_formatter = CommonLogFormatter()
-file_handler.setFormatter(clf_formatter)
-console_handler.setFormatter(clf_formatter)
-
-# 添加处理器到日志记录器
-logger.addHandler(file_handler)
-logger.addHandler(console_handler)
 
 load_dotenv(find_dotenv())
-access_token = os.getenv('ACCESS_TOKEN')
-secret = os.getenv('SECRET')
+access_token = os.getenv("ACCESS_TOKEN")
+secret = os.getenv("SECRET")
 configuration = Configuration(access_token=access_token)
 handler = WebhookHandler(secret)
 
 app = Flask(__name__)
+
+app.config["LOG_TYPE"] = os.environ.get("LOG_TYPE", "stream")
+app.config["LOG_LEVEL"] = os.environ.get("LOG_LEVEL", "INFO")
+app.config["LOG_DIR"] = os.environ.get("LOG_DIR", "./logs")
+app.config["APP_LOG_NAME"] = os.environ.get("APP_LOG_NAME", "app.log")
+app.config["WWW_LOG_NAME"] = os.environ.get("WWW_LOG_NAME", "access.log")
+app.config["LOG_MAX_BYTES"] = os.environ.get(
+    "LOG_MAX_BYTES", 100_000_000
+)  # 100MB in bytes
+app.config["LOG_COPIES"] = os.environ.get("LOG_COPIES", 5)
+logs = LogSetup()
+logs.init_app(app)
 
 # 定義全局變量
 current_question = None
@@ -124,6 +59,26 @@ user_selections = {}  # 添加全局變量來儲存用戶選擇
 user_question_options = {}  # 添加全局變量來儲存每個用戶的題目選項順序
 user_current_question = {}  # user_id: 正確答案
 user_current_question_data = {}  # user_id: 題目完整資料
+
+
+@app.after_request
+def after_request(response):
+    """Logging after every request."""
+    logger = logging.getLogger("app.access")
+    logger.info(
+        "%s [%s] %s %s %s %s %s %s %s",
+        request.remote_addr,
+        datetime.now().strftime("%d/%b/%Y:%H:%M:%S.%f")[:-3],
+        request.method,
+        request.path,
+        request.scheme,
+        response.status,
+        response.content_length,
+        request.referrer,
+        request.user_agent,
+    )
+    return response
+
 
 # 初始化數據庫
 db = Database()
@@ -136,17 +91,15 @@ def create_database_flex_message(page=1):
     """
     try:
         # 讀取基本模板
-        with open('templates/database_flex_message.json', 'r', encoding='utf-8') as f:
+        with open("templates/database_flex_message.json", "r", encoding="utf-8") as f:
             flex_message = json.load(f)
 
         # 獲取 database 資料夾中的所有 json 文件
-        database_files = [f for f in os.listdir(
-            'database') if f.endswith('.json')]
+        database_files = [f for f in os.listdir("database") if f.endswith(".json")]
 
         # 計算分頁資訊
         items_per_page = 10  # 每頁顯示10個題庫
-        total_pages = (len(database_files) +
-                       items_per_page - 1) // items_per_page
+        total_pages = (len(database_files) + items_per_page - 1) // items_per_page
 
         # 確保頁碼有效
         page = max(1, min(page, total_pages))
@@ -163,7 +116,7 @@ def create_database_flex_message(page=1):
             db_name = db_file[:-5]
 
             # 將 _multi 替換為 _多選
-            display_name = db_name.replace('_multi', '_多選')
+            display_name = db_name.replace("_multi", "_多選")
 
             # 如果題庫名稱太長，截斷它
             if len(display_name) > 20:  # 為了在氣泡中顯示得更好
@@ -183,7 +136,7 @@ def create_database_flex_message(page=1):
                             "weight": "bold",
                             "size": "md",
                             "wrap": True,
-                            "align": "center"
+                            "align": "center",
                         },
                         {
                             "type": "button",
@@ -192,11 +145,11 @@ def create_database_flex_message(page=1):
                             "action": {
                                 "type": "message",
                                 "label": "開始練習",
-                                "text": f"切換到 {db_name}"
-                            }
-                        }
-                    ]
-                }
+                                "text": f"切換到 {db_name}",
+                            },
+                        },
+                    ],
+                },
             }
             bubbles.append(bubble)
 
@@ -208,33 +161,37 @@ def create_database_flex_message(page=1):
                     "text": f"第 {page}/{total_pages} 頁",
                     "weight": "bold",
                     "size": "sm",
-                    "align": "center"
+                    "align": "center",
                 }
             ]
 
             # 上一頁按鈕
             if page > 1:
-                navigation_contents.append({
-                    "type": "button",
-                    "style": "secondary",
-                    "action": {
-                        "type": "message",
-                        "label": "上一頁",
-                        "text": f"題庫列表 {page-1}"
+                navigation_contents.append(
+                    {
+                        "type": "button",
+                        "style": "secondary",
+                        "action": {
+                            "type": "message",
+                            "label": "上一頁",
+                            "text": f"題庫列表 {page - 1}",
+                        },
                     }
-                })
+                )
 
             # 下一頁按鈕
             if page < total_pages:
-                navigation_contents.append({
-                    "type": "button",
-                    "style": "secondary",
-                    "action": {
-                        "type": "message",
-                        "label": "下一頁",
-                        "text": f"題庫列表 {page+1}"
+                navigation_contents.append(
+                    {
+                        "type": "button",
+                        "style": "secondary",
+                        "action": {
+                            "type": "message",
+                            "label": "下一頁",
+                            "text": f"題庫列表 {page + 1}",
+                        },
                     }
-                })
+                )
 
             navigation_bubble = {
                 "type": "bubble",
@@ -243,8 +200,8 @@ def create_database_flex_message(page=1):
                     "type": "box",
                     "layout": "vertical",
                     "spacing": "sm",
-                    "contents": navigation_contents
-                }
+                    "contents": navigation_contents,
+                },
             }
 
             bubbles.append(navigation_bubble)
@@ -261,10 +218,12 @@ def create_database_flex_message(page=1):
 def get_question(database_name=None):
     """從指定題庫或預設題庫中讀取隨機題目"""
     try:
-        file_path = f'database/{database_name}.json' if database_name else 'questions.json'
-        with open(file_path, 'r', encoding='utf-8') as f:
+        file_path = (
+            f"database/{database_name}.json" if database_name else "questions.json"
+        )
+        with open(file_path, "r", encoding="utf-8") as f:
             questions_data = json.load(f)
-            questions = questions_data['questions']
+            questions = questions_data["questions"]
             return random.choice(questions)
     except Exception as e:
         print(f"Error reading questions: {e}")
@@ -273,10 +232,12 @@ def get_question(database_name=None):
 
 def is_multi_choice_db(database_name):
     """判斷是否為多選題庫"""
-    return database_name.endswith('multi')
+    return database_name.endswith("multi")
 
 
-def create_flex_message(question_data, selected_options=None, user_id=None, is_multi=False):
+def create_flex_message(
+    question_data, selected_options=None, user_id=None, is_multi=False
+):
     """創建 Flex Message，保持ABCD順序不變，但選項內容隨機排序
     Args:
         question_data: 題目數據
@@ -287,8 +248,12 @@ def create_flex_message(question_data, selected_options=None, user_id=None, is_m
     global current_question, current_question_data, user_question_options
 
     # 根據題目類型選擇不同的模板文件
-    template_file = 'templates/multi_flex_message.json' if is_multi else 'templates/topic_flex_message.json'
-    with open(template_file, 'r', encoding='utf-8') as f:
+    template_file = (
+        "templates/multi_flex_message.json"
+        if is_multi
+        else "templates/topic_flex_message.json"
+    )
+    with open(template_file, "r", encoding="utf-8") as f:
         flex_message = json.load(f)
 
     # 保存當前題目數據
@@ -296,13 +261,18 @@ def create_flex_message(question_data, selected_options=None, user_id=None, is_m
     current_question_data = question_data
 
     # 設置題目文字（如果太長則截斷）
-    question_text = question_data['question_text']
+    question_text = question_data["question_text"]
     if len(question_text) > 100:  # 限制題目長度
         question_text = question_text[:97] + "..."
     flex_message["body"]["contents"][1]["text"] = f"🧠 題目：{question_text}"
 
     # 檢查是否已有固定的選項順序
-    if is_multi and user_id and user_id in user_question_options and question_data["id"] == user_question_options[user_id]["id"]:
+    if (
+        is_multi
+        and user_id
+        and user_id in user_question_options
+        and question_data["id"] == user_question_options[user_id]["id"]
+    ):
         # 使用已存在的選項順序
         new_options = user_question_options[user_id]["options"]
         current_question = user_question_options[user_id]["answer"]
@@ -326,14 +296,14 @@ def create_flex_message(question_data, selected_options=None, user_id=None, is_m
                     new_answers.append(char)
 
         # 更新正確答案為新的字母組合
-        current_question = ''.join(sorted(new_answers))
+        current_question = "".join(sorted(new_answers))
 
         # 保存選項順序（僅多選題需要）
         if is_multi and user_id:
             user_question_options[user_id] = {
                 "id": question_data["id"],
                 "options": new_options,
-                "answer": current_question
+                "answer": current_question,
             }
 
     # 更新題目數據中的選項
@@ -346,7 +316,7 @@ def create_flex_message(question_data, selected_options=None, user_id=None, is_m
         "type": "box",
         "layout": "vertical",
         "spacing": "sm",
-        "contents": []
+        "contents": [],
     }
 
     # 如果沒有已選擇的選項，初始化為空集合
@@ -363,10 +333,7 @@ def create_flex_message(question_data, selected_options=None, user_id=None, is_m
                 "layout": "vertical",
                 "cornerRadius": "xxl",
                 "backgroundColor": background_color,
-                "action": {
-                    "type": "message",
-                    "text": f"選擇 {char}"
-                },
+                "action": {"type": "message", "text": f"選擇 {char}"},
                 "contents": [
                     {
                         "type": "box",
@@ -379,11 +346,11 @@ def create_flex_message(question_data, selected_options=None, user_id=None, is_m
                                 "color": "#ffffff",
                                 "wrap": True,
                                 "size": "sm",
-                                "flex": 1
+                                "flex": 1,
                             }
-                        ]
+                        ],
                     }
-                ]
+                ],
             }
         else:
             # 單選題使用盒子樣式
@@ -392,10 +359,7 @@ def create_flex_message(question_data, selected_options=None, user_id=None, is_m
                 "layout": "vertical",
                 "cornerRadius": "xxl",
                 "backgroundColor": "#5A8DEE",
-                "action": {
-                    "type": "message",
-                    "text": f"選擇 {char}"
-                },
+                "action": {"type": "message", "text": f"選擇 {char}"},
                 "contents": [
                     {
                         "type": "box",
@@ -408,11 +372,11 @@ def create_flex_message(question_data, selected_options=None, user_id=None, is_m
                                 "color": "#ffffff",
                                 "wrap": True,
                                 "size": "sm",
-                                "flex": 1
+                                "flex": 1,
                             }
-                        ]
+                        ],
                     }
-                ]
+                ],
             }
         options_container["contents"].append(option_box)
 
@@ -420,8 +384,7 @@ def create_flex_message(question_data, selected_options=None, user_id=None, is_m
     flex_message["body"]["contents"][3] = options_container
 
     # 獲取題目的作答統計
-    attempt_stats = db.get_question_attempt_stats(
-        question_data['id'], current_database)
+    attempt_stats = db.get_question_attempt_stats(question_data["id"], current_database)
     print(f"Got attempt stats: {attempt_stats}")
 
     # 更新 footer 中的統計信息
@@ -430,8 +393,12 @@ def create_flex_message(question_data, selected_options=None, user_id=None, is_m
         if isinstance(stats_box, dict) and "contents" in stats_box:
             print(f"Updating stats in footer: {stats_box}")
             # 直接設置實際的數值，而不是使用佔位符
-            stats_box["contents"][0]["text"] = f"作答次數：{attempt_stats['total_attempts']}"
-            stats_box["contents"][1]["text"] = f"答對次數：{attempt_stats['correct_attempts']}"
+            stats_box["contents"][0]["text"] = (
+                f"作答次數：{attempt_stats['total_attempts']}"
+            )
+            stats_box["contents"][1]["text"] = (
+                f"答對次數：{attempt_stats['correct_attempts']}"
+            )
             print(f"Updated footer stats: {stats_box}")
         else:
             print(f"Unexpected footer structure: {stats_box}")
@@ -447,7 +414,7 @@ def create_statistics_flex_message(user_id, database_name):
     """創建統計信息的 Flex Message"""
     try:
         # 讀取基本模板
-        with open('templates/statistics_flex_message.json', 'r', encoding='utf-8') as f:
+        with open("templates/statistics_flex_message.json", "r", encoding="utf-8") as f:
             flex_message = json.load(f)
 
         # 獲取統計數據
@@ -462,20 +429,20 @@ def create_statistics_flex_message(user_id, database_name):
             if box.get("type") == "box" and box.get("layout") == "baseline":
                 value_text = box["contents"][1]
                 if "總題目數" in box["contents"][0]["text"]:
-                    value_text["text"] = str(stats['total_questions'])
+                    value_text["text"] = str(stats["total_questions"])
                 elif "已答題數" in box["contents"][0]["text"]:
-                    value_text["text"] = str(stats['total_answers'])
+                    value_text["text"] = str(stats["total_answers"])
                 elif "答對題數" in box["contents"][0]["text"]:
-                    value_text["text"] = str(stats['correct_answers'])
+                    value_text["text"] = str(stats["correct_answers"])
                 elif "完成率" in box["contents"][0]["text"]:
                     value_text["text"] = f"{stats['completion_rate']:.1f}%"
                 elif "正確率" in box["contents"][0]["text"]:
                     value_text["text"] = f"{stats['accuracy_rate']:.1f}%"
                 elif "錯題數" in box["contents"][0]["text"]:
-                    value_text["text"] = str(stats['total_wrong_questions'])
+                    value_text["text"] = str(stats["total_wrong_questions"])
 
         # 如果有錯題練習記錄，添加相關統計
-        if stats['practice_count'] > 0:
+        if stats["practice_count"] > 0:
             practice_stats = {
                 "type": "box",
                 "layout": "vertical",
@@ -487,7 +454,7 @@ def create_statistics_flex_message(user_id, database_name):
                         "text": "📝 錯題練習統計",
                         "weight": "bold",
                         "size": "md",
-                        "color": "#1a1a1a"
+                        "color": "#1a1a1a",
                     },
                     {
                         "type": "box",
@@ -498,16 +465,16 @@ def create_statistics_flex_message(user_id, database_name):
                                 "text": "練習次數",
                                 "size": "sm",
                                 "color": "#888888",
-                                "flex": 1
+                                "flex": 1,
                             },
                             {
                                 "type": "text",
-                                "text": str(stats['practice_count']),
+                                "text": str(stats["practice_count"]),
                                 "size": "sm",
                                 "color": "#5A8DEE",
-                                "align": "end"
-                            }
-                        ]
+                                "align": "end",
+                            },
+                        ],
                     },
                     {
                         "type": "box",
@@ -518,16 +485,16 @@ def create_statistics_flex_message(user_id, database_name):
                                 "text": "答對次數",
                                 "size": "sm",
                                 "color": "#888888",
-                                "flex": 1
+                                "flex": 1,
                             },
                             {
                                 "type": "text",
-                                "text": str(stats['practice_correct']),
+                                "text": str(stats["practice_correct"]),
                                 "size": "sm",
                                 "color": "#00C851",
-                                "align": "end"
-                            }
-                        ]
+                                "align": "end",
+                            },
+                        ],
                     },
                     {
                         "type": "box",
@@ -538,18 +505,18 @@ def create_statistics_flex_message(user_id, database_name):
                                 "text": "練習正確率",
                                 "size": "sm",
                                 "color": "#888888",
-                                "flex": 1
+                                "flex": 1,
                             },
                             {
                                 "type": "text",
                                 "text": f"{stats['practice_accuracy_rate']:.1f}%",
                                 "size": "sm",
                                 "color": "#00C851",
-                                "align": "end"
-                            }
-                        ]
-                    }
-                ]
+                                "align": "end",
+                            },
+                        ],
+                    },
+                ],
             }
             flex_message["body"]["contents"].append(practice_stats)
 
@@ -569,8 +536,9 @@ def send_question(reply_token, database_name=None, user_id=None, wrong_question=
             if current_database:
                 database_name = current_database
             else:
-                database_files = [f[:-5]
-                                  for f in os.listdir('database') if f.endswith('.json')]
+                database_files = [
+                    f[:-5] for f in os.listdir("database") if f.endswith(".json")
+                ]
                 if not database_files:
                     raise FileNotFoundError("找不到任何題庫文件")
                 database_name = database_files[0]
@@ -584,7 +552,7 @@ def send_question(reply_token, database_name=None, user_id=None, wrong_question=
 
         # 獲取題目
         if wrong_question:
-            question_data = wrong_question['question_data']
+            question_data = wrong_question["question_data"]
         else:
             question_data = get_question(database_name)
 
@@ -596,8 +564,7 @@ def send_question(reply_token, database_name=None, user_id=None, wrong_question=
             del user_question_options[user_id]
 
         # 創建 Flex Message
-        flex_content = create_flex_message(
-            question_data, set(), user_id, is_multi)
+        flex_content = create_flex_message(question_data, set(), user_id, is_multi)
         if not flex_content:
             raise ValueError("無法創建 Flex Message")
 
@@ -608,10 +575,12 @@ def send_question(reply_token, database_name=None, user_id=None, wrong_question=
             line_bot_api.reply_message_with_http_info(
                 ReplyMessageRequest(
                     reply_token=reply_token,
-                    messages=[FlexMessage(
-                        alt_text=f"iPAS {database_name}題目",
-                        contents=FlexContainer.from_dict(flex_content)
-                    )]
+                    messages=[
+                        FlexMessage(
+                            alt_text=f"iPAS {database_name}題目",
+                            contents=FlexContainer.from_dict(flex_content),
+                        )
+                    ],
                 )
             )
 
@@ -622,7 +591,11 @@ def send_question(reply_token, database_name=None, user_id=None, wrong_question=
             line_bot_api.reply_message_with_http_info(
                 ReplyMessageRequest(
                     reply_token=reply_token,
-                    messages=[TextMessage(text="抱歉，讀取題目時發生錯誤。請稍後再試或切換其他題庫。")]
+                    messages=[
+                        TextMessage(
+                            text="抱歉，讀取題目時發生錯誤。請稍後再試或切換其他題庫。"
+                        )
+                    ],
                 )
             )
 
@@ -630,15 +603,19 @@ def send_question(reply_token, database_name=None, user_id=None, wrong_question=
 def create_answer_flex_message(question_data, selected_answer, is_correct):
     """創建答案回覆的 Flex Message"""
     try:
-        with open('templates/answer_flex_message.json', 'r', encoding='utf-8') as f:
+        with open("templates/answer_flex_message.json", "r", encoding="utf-8") as f:
             flex_message = json.load(f)
 
         # 設置答對/答錯的文字和顏色
-        flex_message["body"]["contents"][0]["text"] = "✅ 答對了！" if is_correct else "❌ 答錯了！"
-        flex_message["body"]["contents"][0]["color"] = "#00C851" if is_correct else "#ff4444"
+        flex_message["body"]["contents"][0]["text"] = (
+            "✅ 答對了！" if is_correct else "❌ 答錯了！"
+        )
+        flex_message["body"]["contents"][0]["color"] = (
+            "#00C851" if is_correct else "#ff4444"
+        )
 
         # 設置題目文字（如果太長則截斷）
-        question_text = question_data['question_text']
+        question_text = question_data["question_text"]
         if len(question_text) > 100:  # 限制題目長度
             question_text = question_text[:97] + "..."
         flex_message["body"]["contents"][2]["text"] = question_text
@@ -646,7 +623,7 @@ def create_answer_flex_message(question_data, selected_answer, is_correct):
         # 設置正確答案（如果太長則截斷）
         # 對於多選題，顯示所有正確答案
         correct_answers = []
-        for ans in question_data['answer']:
+        for ans in question_data["answer"]:
             correct_answers.append(f"{ans}. {question_data['options'][ans]}")
         correct_answer_text = "\n".join(correct_answers)
 
@@ -660,7 +637,7 @@ def create_answer_flex_message(question_data, selected_answer, is_correct):
         return None
 
 
-@app.route("/", methods=['POST'])
+@app.route("/", methods=["POST"])
 def callback():
     # 获取基本请求信息
     ip = request.remote_addr
@@ -668,17 +645,11 @@ def callback():
     path = request.path
 
     # 获取 X-Line-Signature 请求头
-    signature = request.headers.get('X-Line-Signature', '')
+    signature = request.headers.get("X-Line-Signature", "")
     if not signature:
-        extra = {
-            'ip': ip,
-            'method': method,
-            'path': path,
-            'status': 400,
-            'size': 0
-        }
-        logging.warning('Missing X-Line-Signature header', extra=extra)
-        return 'Bad Request', 400
+        extra = {"ip": ip, "method": method, "path": path, "status": 400, "size": 0}
+        logging.warning("Missing X-Line-Signature header", extra=extra)
+        return "Bad Request", 400
 
     # 获取请求体
     body = request.get_data(as_text=True)
@@ -686,73 +657,46 @@ def callback():
     # 验证签名
     try:
         # 使用环境变量中的 channel secret
-        channel_secret = os.getenv('SECRET')
+        channel_secret = os.getenv("SECRET")
         if not channel_secret:
-            extra = {
-                'ip': ip,
-                'method': method,
-                'path': path,
-                'status': 500,
-                'size': 0
-            }
-            logging.error('Missing channel secret', extra=extra)
-            return 'Server Error', 500
+            extra = {"ip": ip, "method": method, "path": path, "status": 500, "size": 0}
+            logging.error("Missing channel secret", extra=extra)
+            return "Server Error", 500
 
         # 计算签名
         hash_obj = hmac.new(
-            channel_secret.encode('utf-8'),
-            body.encode('utf-8'),
-            hashlib.sha256
+            channel_secret.encode("utf-8"), body.encode("utf-8"), hashlib.sha256
         )
-        calculated_signature = base64.b64encode(
-            hash_obj.digest()).decode('utf-8')
+        calculated_signature = base64.b64encode(hash_obj.digest()).decode("utf-8")
 
         # 比较签名
         if not hmac.compare_digest(signature, calculated_signature):
-            extra = {
-                'ip': ip,
-                'method': method,
-                'path': path,
-                'status': 400,
-                'size': 0
-            }
-            logging.warning('Invalid signature', extra=extra)
-            return 'Bad Request', 400
+            extra = {"ip": ip, "method": method, "path": path, "status": 400, "size": 0}
+            logging.warning("Invalid signature", extra=extra)
+            return "Bad Request", 400
 
         # 处理 webhook 请求
         handler.handle(body, signature)
 
         # 记录成功请求
         extra = {
-            'ip': ip,
-            'method': method,
-            'path': path,
-            'status': 200,
-            'size': len(body)
+            "ip": ip,
+            "method": method,
+            "path": path,
+            "status": 200,
+            "size": len(body),
         }
-        logging.info('Request processed successfully', extra=extra)
-        return 'OK'
+        logging.info("Request processed successfully", extra=extra)
+        return "OK"
 
     except InvalidSignatureError:
-        extra = {
-            'ip': ip,
-            'method': method,
-            'path': path,
-            'status': 400,
-            'size': 0
-        }
-        logging.warning('Invalid signature', extra=extra)
-        return 'Bad Request', 400
+        extra = {"ip": ip, "method": method, "path": path, "status": 400, "size": 0}
+        logging.warning("Invalid signature", extra=extra)
+        return "Bad Request", 400
     except Exception as e:
-        extra = {
-            'ip': ip,
-            'method': method,
-            'path': path,
-            'status': 500,
-            'size': 0
-        }
-        logging.error('Error processing webhook: %s', str(e), extra=extra)
-        return 'Server Error', 500
+        extra = {"ip": ip, "method": method, "path": path, "status": 500, "size": 0}
+        logging.error("Error processing webhook: %s", str(e), extra=extra)
+        return "Server Error", 500
 
 
 @handler.add(MessageEvent, message=TextMessageContent)
@@ -775,7 +719,9 @@ def handle_message(event):
                 async def show_loading():
                     async_api_client = AsyncApiClient(configuration)
                     async_line_bot_api = AsyncMessagingApi(async_api_client)
-                    await async_line_bot_api.show_loading_animation(ShowLoadingAnimationRequest(chatId=user_id, loadingSeconds=5))
+                    await async_line_bot_api.show_loading_animation(
+                        ShowLoadingAnimationRequest(chatId=user_id, loadingSeconds=5)
+                    )
 
                 asyncio.run(show_loading())
 
@@ -784,7 +730,10 @@ def handle_message(event):
 
                 if not is_multi:
                     # 單選題直接檢查答案
-                    if user_id in user_current_question and user_id in user_current_question_data:
+                    if (
+                        user_id in user_current_question
+                        and user_id in user_current_question_data
+                    ):
                         correct_answer = user_current_question[user_id]
                         question_data = user_current_question_data[user_id]
                         is_correct = selected_answer == correct_answer
@@ -796,7 +745,9 @@ def handle_message(event):
                             user_answer=selected_answer,
                             is_correct=is_correct,
                             database_name=current_database,
-                            is_wrong_question_practice=getattr(globals(), 'is_wrong_question_practice', False)
+                            is_wrong_question_practice=getattr(
+                                globals(), "is_wrong_question_practice", False
+                            ),
                         )
 
                         # 清除
@@ -804,12 +755,21 @@ def handle_message(event):
                         del user_current_question_data[user_id]
 
                         # 顯示結果
-                        result_flex = create_answer_flex_message(question_data, selected_answer, is_correct)
+                        result_flex = create_answer_flex_message(
+                            question_data, selected_answer, is_correct
+                        )
                         if result_flex:
                             line_bot_api.reply_message_with_http_info(
                                 ReplyMessageRequest(
                                     reply_token=event.reply_token,
-                                    messages=[FlexMessage(alt_text="題目回顧", contents=FlexContainer.from_dict(result_flex))]
+                                    messages=[
+                                        FlexMessage(
+                                            alt_text="題目回顧",
+                                            contents=FlexContainer.from_dict(
+                                                result_flex
+                                            ),
+                                        )
+                                    ],
                                 )
                             )
                     return
@@ -824,11 +784,21 @@ def handle_message(event):
 
                     # 更新畫面
                     if user_id in user_current_question_data:
-                        flex_content = create_flex_message(user_current_question_data[user_id], user_selections[user_id], user_id, True)
+                        flex_content = create_flex_message(
+                            user_current_question_data[user_id],
+                            user_selections[user_id],
+                            user_id,
+                            True,
+                        )
                         line_bot_api.reply_message_with_http_info(
                             ReplyMessageRequest(
                                 reply_token=event.reply_token,
-                                messages=[FlexMessage(alt_text="選擇題選項", contents=FlexContainer.from_dict(flex_content))]
+                                messages=[
+                                    FlexMessage(
+                                        alt_text="選擇題選項",
+                                        contents=FlexContainer.from_dict(flex_content),
+                                    )
+                                ],
                             )
                         )
                     return
@@ -839,18 +809,27 @@ def handle_message(event):
                 async def show_loading():
                     async_api_client = AsyncApiClient(configuration)
                     async_line_bot_api = AsyncMessagingApi(async_api_client)
-                    await async_line_bot_api.show_loading_animation(ShowLoadingAnimationRequest(chatId=user_id, loadingSeconds=5))
+                    await async_line_bot_api.show_loading_animation(
+                        ShowLoadingAnimationRequest(chatId=user_id, loadingSeconds=5)
+                    )
 
                 asyncio.run(show_loading())
 
                 if user_id in user_selections:
                     user_selections[user_id].clear()
                     if user_id in user_current_question_data:
-                        flex_content = create_flex_message(user_current_question_data[user_id], set(), user_id, True)
+                        flex_content = create_flex_message(
+                            user_current_question_data[user_id], set(), user_id, True
+                        )
                         line_bot_api.reply_message_with_http_info(
                             ReplyMessageRequest(
                                 reply_token=event.reply_token,
-                                messages=[FlexMessage(alt_text="選擇題選項", contents=FlexContainer.from_dict(flex_content))]
+                                messages=[
+                                    FlexMessage(
+                                        alt_text="選擇題選項",
+                                        contents=FlexContainer.from_dict(flex_content),
+                                    )
+                                ],
                             )
                         )
                     return
@@ -861,7 +840,9 @@ def handle_message(event):
                 async def show_loading():
                     async_api_client = AsyncApiClient(configuration)
                     async_line_bot_api = AsyncMessagingApi(async_api_client)
-                    await async_line_bot_api.show_loading_animation(ShowLoadingAnimationRequest(chatId=user_id, loadingSeconds=5))
+                    await async_line_bot_api.show_loading_animation(
+                        ShowLoadingAnimationRequest(chatId=user_id, loadingSeconds=5)
+                    )
 
                 asyncio.run(show_loading())
 
@@ -869,33 +850,42 @@ def handle_message(event):
                     line_bot_api.reply_message_with_http_info(
                         ReplyMessageRequest(
                             reply_token=event.reply_token,
-                            messages=[TextMessage(text="請先選擇答案")]
+                            messages=[TextMessage(text="請先選擇答案")],
                         )
                     )
                     return
 
-                if user_id in user_current_question and user_id in user_current_question_data:
+                if (
+                    user_id in user_current_question
+                    and user_id in user_current_question_data
+                ):
                     correct_answer = user_current_question[user_id]
                     question_data = user_current_question_data[user_id]
                     selected_answers = sorted(user_selections[user_id])
 
-                    is_correct = (len(selected_answers) == len(correct_answer) and all(ans in correct_answer for ans in selected_answers))
+                    is_correct = len(selected_answers) == len(correct_answer) and all(
+                        ans in correct_answer for ans in selected_answers
+                    )
 
                     # 記錄答題
                     db.record_answer(
                         user_id=user_id,
                         question_data=question_data,
-                        user_answer=','.join(selected_answers),
+                        user_answer=",".join(selected_answers),
                         is_correct=is_correct,
                         database_name=current_database,
-                        is_wrong_question_practice=getattr(globals(), 'is_wrong_question_practice', False)
+                        is_wrong_question_practice=getattr(
+                            globals(), "is_wrong_question_practice", False
+                        ),
                     )
 
                     # 重置錯題練習標記
-                    if 'is_wrong_question_practice' in globals():
+                    if "is_wrong_question_practice" in globals():
                         del is_wrong_question_practice
 
-                    result_flex = create_answer_flex_message(question_data, ','.join(selected_answers), is_correct)
+                    result_flex = create_answer_flex_message(
+                        question_data, ",".join(selected_answers), is_correct
+                    )
 
                     user_selections[user_id].clear()
                     if user_id in user_question_options:
@@ -905,7 +895,12 @@ def handle_message(event):
                         line_bot_api.reply_message_with_http_info(
                             ReplyMessageRequest(
                                 reply_token=event.reply_token,
-                                messages=[FlexMessage(alt_text="題目回顧", contents=FlexContainer.from_dict(result_flex))]
+                                messages=[
+                                    FlexMessage(
+                                        alt_text="題目回顧",
+                                        contents=FlexContainer.from_dict(result_flex),
+                                    )
+                                ],
                             )
                         )
                 return
@@ -916,7 +911,9 @@ def handle_message(event):
                 async def show_loading():
                     async_api_client = AsyncApiClient(configuration)
                     async_line_bot_api = AsyncMessagingApi(async_api_client)
-                    await async_line_bot_api.show_loading_animation(ShowLoadingAnimationRequest(chatId=user_id, loadingSeconds=5))
+                    await async_line_bot_api.show_loading_animation(
+                        ShowLoadingAnimationRequest(chatId=user_id, loadingSeconds=5)
+                    )
 
                 asyncio.run(show_loading())
 
@@ -926,14 +923,19 @@ def handle_message(event):
                     line_bot_api.reply_message_with_http_info(
                         ReplyMessageRequest(
                             reply_token=event.reply_token,
-                            messages=[FlexMessage(alt_text="答題統計", contents=FlexContainer.from_dict(stats_flex))]
+                            messages=[
+                                FlexMessage(
+                                    alt_text="答題統計",
+                                    contents=FlexContainer.from_dict(stats_flex),
+                                )
+                            ],
                         )
                     )
                 else:
                     line_bot_api.reply_message_with_http_info(
                         ReplyMessageRequest(
                             reply_token=event.reply_token,
-                            messages=[TextMessage(text="請先選擇題庫開始練習")]
+                            messages=[TextMessage(text="請先選擇題庫開始練習")],
                         )
                     )
                 return
@@ -944,7 +946,9 @@ def handle_message(event):
                 async def show_loading():
                     async_api_client = AsyncApiClient(configuration)
                     async_line_bot_api = AsyncMessagingApi(async_api_client)
-                    await async_line_bot_api.show_loading_animation(ShowLoadingAnimationRequest(chatId=user_id, loadingSeconds=5))
+                    await async_line_bot_api.show_loading_animation(
+                        ShowLoadingAnimationRequest(chatId=user_id, loadingSeconds=5)
+                    )
 
                 asyncio.run(show_loading())
 
@@ -956,19 +960,21 @@ def handle_message(event):
                         wrong_question = random.choice(wrong_questions)
                         # 發送題目時標記為錯題練習
                         is_wrong_question_practice = True
-                        send_question(event.reply_token, current_db, user_id, wrong_question)
+                        send_question(
+                            event.reply_token, current_db, user_id, wrong_question
+                        )
                     else:
                         line_bot_api.reply_message_with_http_info(
                             ReplyMessageRequest(
                                 reply_token=event.reply_token,
-                                messages=[TextMessage(text="目前沒有錯題記錄")]
+                                messages=[TextMessage(text="目前沒有錯題記錄")],
                             )
                         )
                 else:
                     line_bot_api.reply_message_with_http_info(
                         ReplyMessageRequest(
                             reply_token=event.reply_token,
-                            messages=[TextMessage(text="請先選擇題庫開始練習")]
+                            messages=[TextMessage(text="請先選擇題庫開始練習")],
                         )
                     )
                 return
@@ -979,7 +985,9 @@ def handle_message(event):
                 async def show_loading():
                     async_api_client = AsyncApiClient(configuration)
                     async_line_bot_api = AsyncMessagingApi(async_api_client)
-                    await async_line_bot_api.show_loading_animation(ShowLoadingAnimationRequest(chatId=user_id, loadingSeconds=5))
+                    await async_line_bot_api.show_loading_animation(
+                        ShowLoadingAnimationRequest(chatId=user_id, loadingSeconds=5)
+                    )
 
                 asyncio.run(show_loading())
 
@@ -988,14 +996,19 @@ def handle_message(event):
                     line_bot_api.reply_message_with_http_info(
                         ReplyMessageRequest(
                             reply_token=event.reply_token,
-                            messages=[FlexMessage(alt_text="選擇題庫", contents=FlexContainer.from_dict(flex_content))]
+                            messages=[
+                                FlexMessage(
+                                    alt_text="選擇題庫",
+                                    contents=FlexContainer.from_dict(flex_content),
+                                )
+                            ],
                         )
                     )
                 else:
                     line_bot_api.reply_message_with_http_info(
                         ReplyMessageRequest(
                             reply_token=event.reply_token,
-                            messages=[TextMessage(text="抱歉，無法讀取題庫列表")]
+                            messages=[TextMessage(text="抱歉，無法讀取題庫列表")],
                         )
                     )
 
@@ -1005,7 +1018,9 @@ def handle_message(event):
                 async def show_loading():
                     async_api_client = AsyncApiClient(configuration)
                     async_line_bot_api = AsyncMessagingApi(async_api_client)
-                    await async_line_bot_api.show_loading_animation(ShowLoadingAnimationRequest(chatId=user_id, loadingSeconds=5))
+                    await async_line_bot_api.show_loading_animation(
+                        ShowLoadingAnimationRequest(chatId=user_id, loadingSeconds=5)
+                    )
 
                 asyncio.run(show_loading())
 
@@ -1016,14 +1031,19 @@ def handle_message(event):
                         line_bot_api.reply_message_with_http_info(
                             ReplyMessageRequest(
                                 reply_token=event.reply_token,
-                                messages=[FlexMessage(alt_text=f"選擇題庫 - 第{page}頁", contents=FlexContainer.from_dict(flex_content))]
+                                messages=[
+                                    FlexMessage(
+                                        alt_text=f"選擇題庫 - 第{page}頁",
+                                        contents=FlexContainer.from_dict(flex_content),
+                                    )
+                                ],
                             )
                         )
                 except (ValueError, IndexError):
                     line_bot_api.reply_message_with_http_info(
                         ReplyMessageRequest(
                             reply_token=event.reply_token,
-                            messages=[TextMessage(text="無效的頁碼")]
+                            messages=[TextMessage(text="無效的頁碼")],
                         )
                     )
 
@@ -1033,7 +1053,9 @@ def handle_message(event):
                 async def show_loading():
                     async_api_client = AsyncApiClient(configuration)
                     async_line_bot_api = AsyncMessagingApi(async_api_client)
-                    await async_line_bot_api.show_loading_animation(ShowLoadingAnimationRequest(chatId=user_id, loadingSeconds=5))
+                    await async_line_bot_api.show_loading_animation(
+                        ShowLoadingAnimationRequest(chatId=user_id, loadingSeconds=5)
+                    )
 
                 asyncio.run(show_loading())
 
@@ -1046,7 +1068,9 @@ def handle_message(event):
                 async def show_loading():
                     async_api_client = AsyncApiClient(configuration)
                     async_line_bot_api = AsyncMessagingApi(async_api_client)
-                    await async_line_bot_api.show_loading_animation(ShowLoadingAnimationRequest(chatId=user_id, loadingSeconds=5))
+                    await async_line_bot_api.show_loading_animation(
+                        ShowLoadingAnimationRequest(chatId=user_id, loadingSeconds=5)
+                    )
 
                 asyncio.run(show_loading())
 
@@ -1058,7 +1082,9 @@ def handle_message(event):
                 async def show_loading():
                     async_api_client = AsyncApiClient(configuration)
                     async_line_bot_api = AsyncMessagingApi(async_api_client)
-                    await async_line_bot_api.show_loading_animation(ShowLoadingAnimationRequest(chatId=user_id, loadingSeconds=5))
+                    await async_line_bot_api.show_loading_animation(
+                        ShowLoadingAnimationRequest(chatId=user_id, loadingSeconds=5)
+                    )
 
                 asyncio.run(show_loading())
 
@@ -1069,15 +1095,18 @@ def handle_message(event):
                             reply_token=event.reply_token,
                             messages=[
                                 TextMessage(text="請選擇要練習的題庫："),
-                                FlexMessage(alt_text="選擇題庫", contents=FlexContainer.from_dict(flex_content))
-                            ]
+                                FlexMessage(
+                                    alt_text="選擇題庫",
+                                    contents=FlexContainer.from_dict(flex_content),
+                                ),
+                            ],
                         )
                     )
                 else:
                     line_bot_api.reply_message_with_http_info(
                         ReplyMessageRequest(
                             reply_token=event.reply_token,
-                            messages=[TextMessage(text="抱歉，無法讀取題庫列表")]
+                            messages=[TextMessage(text="抱歉，無法讀取題庫列表")],
                         )
                     )
 
@@ -1089,7 +1118,7 @@ def handle_message(event):
                 line_bot_api.reply_message_with_http_info(
                     ReplyMessageRequest(
                         reply_token=event.reply_token,
-                        messages=[TextMessage(text="處理訊息時發生錯誤，請稍後再試")]
+                        messages=[TextMessage(text="處理訊息時發生錯誤，請稍後再試")],
                     )
                 )
         except Exception as inner_e:
@@ -1097,14 +1126,11 @@ def handle_message(event):
 
 
 if __name__ == "__main__":
-    port = int(os.environ.get('PORT', 8080))
+    port = int(os.environ.get("PORT", 8080))
     app.run(
-        host='0.0.0.0',
+        host="0.0.0.0",
         port=port,
         debug=False,
         threaded=True,
-        ssl_context=(
-            'ssl/cert.pem',
-            'ssl/key.pem'
-        )
+        ssl_context=("ssl/cert.pem", "ssl/key.pem"),
     )
